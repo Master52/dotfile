@@ -1,0 +1,131 @@
+set nocompatible              " be iMproved, required
+filetype off                  " required
+
+" set the runtime path to include Vundle and initialize
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+" alternatively, pass a path where Vundle should install plugins
+"call vundle#begin('~/some/path/here')
+
+" let Vundle manage Vundle, required
+Plugin 'VundleVim/Vundle.vim'
+Plugin 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plugin 'junegunn/fzf.vim'
+Plugin 'nathanaelkane/vim-indent-guides'
+
+
+" The following are examples of different formats supported.
+" Keep Plugin commands between vundle#begin/end.
+" plugin on GitHub repo
+Plugin 'tpope/vim-fugitive'
+" plugin from http://vim-scripts.org/vim/scripts.html
+" Plugin 'L9'
+" Git plugin not hosted on GitHub
+Plugin 'git://git.wincent.com/command-t.git'
+" The sparkup vim script is in a subdirectory of this repo called vim.
+" Pass the path to set the runtimepath properly.
+Plugin 'rstacruz/sparkup', {'rtp': 'vim/'}
+" Install L9 and avoid a Naming conflict if you've already installed a
+" different version somewhere else.
+" Plugin 'ascenator/L9', {'name': 'newL9'}
+
+" All of your Plugins must be added before the following line
+call vundle#end()            " required
+filetype plugin indent on    " required
+" To ignore plugin indent changes, instead use:
+"filetype plugin on
+"
+" Brief help
+" :PluginList       - lists configured plugins
+" :PluginInstall    - installs plugins; append `!` to update or just :PluginUpdate
+" :PluginSearch foo - searches for foo; append `!` to refresh local cache
+" :PluginClean      - confirms removal of unused plugins; append `!` to auto-approve removal
+"
+" see :h vundle for more details or wiki for FAQ
+" Put your non-Plugin stuff after this line
+
+syntax on
+set enc=utf-8
+set fenc=utf-8
+set termencoding=utf-8
+set autoindent
+set relativenumber
+set number
+set numberwidth=5
+set so=10
+set ruler         " show the cursor position all the time
+set showcmd       " display incomplete commands
+set incsearch     " do incremental searching
+set hlsearch      " highlight matches
+set autowrite     " Automatically :write before running commands
+
+colorscheme desert
+highlight Comment cterm=bold
+
+
+set linespace=3
+set guifont=Fira\ Code:h12
+set tabstop=4
+set softtabstop=0 noexpandtab
+set shiftwidth=4
+set tabstop=7 softtabstop=0 expandtab shiftwidth=4 smarttab
+
+" Autocompletion
+set wildmode=longest,list,full
+
+" Resizing
+noremap <C-J> :resize -5<CR>
+noremap <C-K> :resize +5<CR>
+noremap <C-H> :vertical resize +5<CR>
+noremap <C-L> :vertical resize -5<CR>
+
+" Remove trailing whitespace on save
+autocmd BufWritePre * %s/\s\+$//e
+
+" Enable spell checking, s for spell check
+map <leader>s :setlocal spell! spelllang=en_au<CR>
+
+" Vertically center document when entering insert mode
+autocmd InsertEnter * norm zz
+
+
+" Use systm Clipboard
+ set clipboard+=unnameplus
+
+
+"Finding Files
+set path+=**
+set wildmenu
+
+
+" BASH SHROTCUT
+nnoremap bs :! bash % <Enter>
+nnoremap sh :!chmod +x % <Enter>
+
+"FZF
+nnoremap <C-B> :Buffers<CR>
+nnoremap <C-M> :Rg<CR>
+inoremap <expr> <c-x><c-f> fzf#vim#complete#path('rg --files')
+
+" Word completion with custom spec with popup layout option
+inoremap <expr> <c-x><c-k> fzf#vim#complete#word({'window': { 'width': 0.2, 'height': 0.9, 'xoffset': 1 }})
+" Replace the default dictionary completion with fzf-based fuzzy completion
+inoremap <expr> <c-x><c-k> fzf#vim#complete('cat /usr/share/dict/words')
+
+
+" Global line completion (not just open buffers. ripgrep required.)
+inoremap <expr> <c-x><c-l> fzf#vim#complete(fzf#wrap({
+  \ 'prefix': '^.*$',
+  \ 'source': 'rg -n ^ --color always',
+  \ 'options': '--ansi --delimiter : --nth 3..',
+  \ 'reducer': { lines -> join(split(lines[0], ':\zs')[2:], '') }}))
+
+"Indenting hint
+set ts=4 sw=4 et
+let g:indent_guides_enable_on_vim_startup = 1
+let g:indent_guides_start_level = 2
+let g:indent_guides_guide_size = 1
+
+
+
+
