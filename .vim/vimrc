@@ -59,7 +59,7 @@ set incsearch     " do incremental searching
 set hlsearch      " highlight matches
 set autowrite     " Automatically :write before running commands
 
-colorscheme desert
+colorscheme sorbet
 highlight Comment cterm=bold
 
 

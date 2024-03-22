@@ -1,4 +1,22 @@
 alt + e
-    /home/master/scripts/nnn_exec.sh
+    prime-run kitty -e ranger
 alt + shift + p
     /home/master/scripts/passmenu
+alt + i
+    prime-run kitty -e "htop"
+alt + shift + i
+    prime-run kitty -e "btop"
+alt + shift + w
+    firefox
+alt + w
+    prime-run qutebrowser
+alt + t
+    telegram-desktop
+alt + Return
+    prime-run kitty
+alt + shift + t
+    prime-run kitty
+alt + shift + r
+    pkill sxhkd && sxhkd && notify-send "  Demon Restarted"
+alt + shift + d
+    pkill dwmblocks && dwmblocks && notify-send "  Block restarted"

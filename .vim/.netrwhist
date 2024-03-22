@@ -1,5 +1,6 @@
 let g:netrw_dirhistmax  =10
-let g:netrw_dirhistcnt =1
+let g:netrw_dirhistcnt =2
+let g:netrw_dirhist_2='/mnt/master/ISOS'
 let g:netrw_dirhist_1='/mnt/master/websites/creative-craft/static/images/resin-bookmark'
 let g:netrw_dirhist_0='/mnt/master/projects/telgeram-scriper'
 let g:netrw_dirhist_9='/mnt/master/websites/InsightfulScript/content/post/harami-pattern'
@@ -9,4 +10,3 @@ let g:netrw_dirhist_6='/mnt/master/websites/InsightfulScript/data'
 let g:netrw_dirhist_5='/mnt/master/websites/InsightfulScript/content/post/2020/jan'
 let g:netrw_dirhist_4='/mnt/master/websites/InsightfulScript/content/categories/linux/beginners-guid-to-snap'
 let g:netrw_dirhist_3='/mnt/master/websites/InsightfulScript/themes/enchanted-lowkey'
-let g:netrw_dirhist_2='/mnt/master/websites/InsightfulScript/themes'
