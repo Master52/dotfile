@@ -20,3 +20,6 @@ alt + shift + r
     pkill sxhkd && sxhkd && notify-send "  Demon Restarted"
 alt + shift + d
     pkill dwmblocks && dwmblocks && notify-send "  Block restarted"
+alt + shift + l
+    logseq.appImage
+
