@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+<defs>
+<linearGradient id="base" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101216"/><stop offset=".55" stop-color="#171c27"/><stop offset="1" stop-color="#24202d"/></linearGradient>
+<linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#244975"/><stop offset="1" stop-color="#1d2b42"/></linearGradient>
+<linearGradient id="silk" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2d3442"/><stop offset="1" stop-color="#191d27"/></linearGradient>
+<linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#39334b"/><stop offset="1" stop-color="#22202b"/></linearGradient>
+</defs><rect width="3840" height="2160" fill="url(#base)"/>
+<path d="M-300 1500 C500 2100 1300 -400 2450 250 S3900 1350 4200 350 L4200 2400 H-300Z" fill="url(#blue)"/>
+<path d="M-300 1750 C650 2100 1400 300 2350 600 S3500 1800 4200 700 L4200 2400 H-300Z" fill="url(#silk)"/>
+<path d="M-300 2200 C850 1700 1600 850 2450 1250 S3500 2200 4200 1350 L4200 2400 H-300Z" fill="url(#violet)"/>
+<path d="M-300 2450 C1000 1900 1600 1400 2550 1750 S3600 2350 4200 1950 L4200 2500Z" fill="url(#silk)"/>
+</svg>

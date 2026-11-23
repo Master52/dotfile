@@ -1,0 +1,12 @@
+#!/bin/sh
+# Keep nchat running in a private tmux server without a visible terminal.
+export PATH="$HOME/.local/bin:$PATH"
+if tmux -L nchat has-session -t nchat 2>/dev/null; then
+    exit 0
+fi
+# Avoid opening the same account in two processes.
+if pgrep -u "$(id -u)" -x nchat >/dev/null; then
+    exit 0
+fi
+# nchat needs a terminal with palette-changing support for hex theme colors.
+exec tmux -L nchat -f /dev/null new-session -d -s nchat -x 120 -y 40 "env TERM=xterm-256color '$HOME/.local/bin/nchat'"

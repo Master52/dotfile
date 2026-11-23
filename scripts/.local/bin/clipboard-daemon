@@ -1,0 +1,6 @@
+#!/bin/sh
+umask 077
+. "$HOME/.config/clipmenu/settings"
+mkdir -p "$CM_DIR"
+chmod 700 "$CM_DIR"
+exec "$HOME/.local/libexec/clipmenud"

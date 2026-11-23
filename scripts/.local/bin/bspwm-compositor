@@ -1,0 +1,14 @@
+#!/bin/sh
+mkdir -p "$HOME/.cache"
+base="$HOME/.config/picom/picom.conf"
+config="$HOME/.cache/bspwm-picom.conf"
+cat "$base" "$HOME/.config/picom/animations.conf" > "$config"
+picom --config "$config" >>"$HOME/.cache/bspwm-picom.log" 2>&1
+status=$?
+[ "$status" -ne 0 ] || exit 0
+# A deliberate compositor restart must not launch a competing fallback.
+[ "$status" -lt 128 ] || exit 0
+# Disable GL blur for the software-backend fallback.
+fallback="$HOME/.cache/bspwm-picom-fallback.conf"
+sed -e 's/backend = "glx"/backend = "xrender"/' -e 's/blur-method = "dual_kawase"/blur-method = "none"/' -e 's/blur-background = true/blur-background = false/' "$config" > "$fallback"
+exec picom --config "$fallback" >>"$HOME/.cache/bspwm-picom.log" 2>&1

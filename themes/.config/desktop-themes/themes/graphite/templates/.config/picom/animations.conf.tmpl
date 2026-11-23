@@ -1,0 +1,8 @@
+# Short, restrained transitions for tiling and floating windows.
+animations = (
+ { triggers = [ "open", "show" ]; preset = "appear"; duration = 0.24; scale = 0.97;
+   suppressions = [ "geometry" ]; },
+ { triggers = [ "close", "hide" ]; preset = "disappear"; duration = 0.18; scale = 0.98;
+   suppressions = [ "geometry" ]; },
+ { triggers = [ "geometry" ]; preset = "geometry-change"; duration = 0.18; }
+);

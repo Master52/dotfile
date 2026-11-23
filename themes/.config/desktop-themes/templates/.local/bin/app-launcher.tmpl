@@ -1,0 +1,4 @@
+#!/bin/sh
+# Float only this launcher; application windows keep their normal placement.
+bspc rule -a DesktopLauncher -o state=floating center=on border=off >/dev/null 2>&1 || :
+exec /usr/bin/python3 "$HOME/.local/libexec/desktop-launcher.py" "$@"

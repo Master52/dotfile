@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=DC Universe Online
+Comment=Play this game on Steam
+Exec=steam steam://rungameid/24200
+Icon=steam_icon_24200
+Terminal=false
+Type=Application
+Categories=Game;

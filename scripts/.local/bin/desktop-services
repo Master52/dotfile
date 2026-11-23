@@ -1,0 +1,61 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+mkdir -p "$HOME/.cache"
+# Recover the desktop session bus when launched outside a session wrapper.
+if ! dbus-send --session --type=method_call --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
+ unset DBUS_SESSION_BUS_ADDRESS
+ eval "$(dbus-launch --sh-syntax --autolaunch=$(cat /var/lib/dbus/machine-id))"
+ export DBUS_SESSION_BUS_ADDRESS
+fi
+"$HOME/.local/bin/desktop-appearance"
+if command -v kitty >/dev/null; then
+ nohup "$HOME/.local/bin/yazi-terminal-server" >>"$HOME/.cache/yazi-terminal.log" 2>&1 </dev/null &
+fi
+if command -v pipewire >/dev/null && [ ! -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
+ pkill -u "$(id -u)" -x wireplumber 2>/dev/null || :
+ pkill -u "$(id -u)" -x pipewire 2>/dev/null || :
+ sleep 0.3
+ pipewire >>"$HOME/.cache/bspwm-audio.log" 2>&1 &
+ sleep 1
+fi
+if command -v dunst >/dev/null && ! pgrep -u "$(id -u)" -x dunst >/dev/null; then
+ dunst >>"$HOME/.cache/bspwm-dunst.log" 2>&1 &
+fi
+if command -v xss-lock >/dev/null && command -v i3lock >/dev/null && command -v xset >/dev/null; then
+ xset s 600 600
+ xset +dpms
+ xset dpms 0 0 900
+ if ! pgrep -u "$(id -u)" -x xss-lock >/dev/null; then
+  xss-lock -- betterlockscreen -l dimblur >>"$HOME/.cache/bspwm-lock.log" 2>&1 &
+ fi
+fi
+if command -v xrandr >/dev/null; then
+ "$HOME/.local/bin/monitor-layout" --watch >>"$HOME/.cache/bspwm-monitors.log" 2>&1 &
+else
+ "$HOME/.local/bin/polybar-launch"
+fi
+
+# Remember copied text for the Alt+P dmenu picker.
+if command -v clipmenud >/dev/null && ! pgrep -u "$(id -u)" -x clipmenud >/dev/null; then
+ nohup "$HOME/.local/bin/clipboard-daemon" >>"$HOME/.cache/clipmenud.log" 2>&1 </dev/null &
+fi
+
+# Authentication prompts for mounting data drives.
+if [ -x /usr/libexec/xfce-polkit ] && ! pgrep -u "$(id -u)" -x xfce-polkit >/dev/null; then
+ /usr/libexec/xfce-polkit >>"$HOME/.cache/desktop-polkit.log" 2>&1 &
+fi
+# Notify about removable drives; mount only from the Alt+U menu.
+nohup "$HOME/.local/bin/drive-menu" --watch >>"$HOME/.cache/desktop-drives.log" 2>&1 </dev/null &
+
+# Low-battery alerts and charger connection feedback (one watcher per session).
+nohup "$HOME/.local/bin/battery-notify" >>"$HOME/.cache/desktop-battery.log" 2>&1 </dev/null &
+
+# Check every configured mail inbox, even when aerc is closed.
+nohup "$HOME/.local/bin/mail-watch" >>"$HOME/.cache/mail-watch.log" 2>&1 </dev/null &
+
+# Keep messaging connected without opening a terminal window.
+"$HOME/.local/bin/nchat-background" >>"$HOME/.cache/nchat-background.log" 2>&1
+
+# Transmission continues downloading after the terminal client is closed.
+nohup "$HOME/.local/bin/torrent-background" >>"$HOME/.cache/torrent-background.log" 2>&1 </dev/null &

@@ -1,0 +1,13 @@
+#!/bin/sh
+mkdir -p "$HOME/.cache"
+pkill -u "$(id -u)" -x polybar 2>/dev/null || :
+tries=0
+while pgrep -u "$(id -u)" -x polybar >/dev/null; do
+ tries=$((tries+1)); [ "$tries" -lt 30 ] || exit 1; sleep 0.1
+done
+primary=$(polybar --list-monitors | sed -n '/(primary)/s/:.*//p' | head -1)
+[ -n "$primary" ] || primary=$(polybar --list-monitors | sed 's/:.*//' | head -1)
+polybar --list-monitors | sed 's/:.*//' | while IFS= read -r monitor; do
+ bar=secondary; [ "$monitor" != "$primary" ] || bar=main
+ MONITOR="$monitor" polybar "$bar" >>"$HOME/.cache/bspwm-polybar.log" 2>&1 &
+done

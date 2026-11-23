@@ -1,0 +1,105 @@
+#!/usr/bin/python3
+import subprocess as sp, time, sys, fcntl, os, re
+from pathlib import Path
+
+def run(*args):
+ return sp.run(args,text=True,stdout=sp.PIPE,stderr=sp.PIPE,timeout=10)
+def names(*args):
+ r=run(*args)
+ return r.stdout.splitlines() if r.returncode==0 else []
+def parse_display_state(text):
+ state=[];enabled=set()
+ for line in text.splitlines():
+  match=re.match(r'^(\S+) (connected|disconnected)\b(.*)',line)
+  if not match:continue
+  name,status,details=match.groups()
+  state.append((name,status))
+  if status=='connected' and re.search(r'\b\d+x\d+[+-]\d+[+-]\d+',details):enabled.add(name)
+ return tuple(state),enabled
+
+def display_state():
+ r=run('xrandr','--query')
+ if r.returncode: raise RuntimeError(r.stderr.strip())
+ return parse_display_state(r.stdout)
+
+def topology():
+ return display_state()[0]
+
+def session_active():
+ # Never alter Xorg outputs while the user is on a TTY or another session.
+ session=os.environ.get('XDG_SESSION_ID')
+ if session:
+  r=run('loginctl','show-session',session,'-p','Active')
+  return r.returncode==0 and 'Active=yes' in r.stdout.splitlines()
+ vt=os.environ.get('XDG_VTNR')
+ if vt:
+  try:return Path('/sys/class/tty/tty0/active').read_text().strip()=='tty'+vt
+  except OSError:return False
+ return False
+
+def recover_disabled_outputs(state,enabled,active):
+ connected=[n for n,s in state if s=='connected']
+ if not active or not connected or enabled:return False
+ # DPMS blanking leaves an active RandR mode, so normal screen-off/locking is
+ # unaffected. Recover only the all-outputs-disabled failure observed on resume.
+ connected.sort(key=lambda n:(not n.startswith(('eDP','LVDS','DSI')),n))
+ target=connected[0]
+ r=run('xrandr','--output',target,'--auto','--primary','--pos','0x0')
+ if r.returncode:raise RuntimeError(r.stderr.strip())
+ run('xset','dpms','force','on')
+ run('xset','s','reset')
+ print(time.strftime('%Y-%m-%d %H:%M:%S')+': requested recovery of disabled output '+target,flush=True)
+ return True
+def apply(state):
+ connected=[n for n,s in state if s=='connected']
+ if not connected:return
+ connected.sort(key=lambda n:(not n.startswith(('eDP','LVDS')),n))
+ # Rescue desktops before disabling an unplugged output.
+ for m in names('bspc','query','-M','--names'):
+  if m not in connected:
+   for d in names('bspc','query','-D','-m',m,'--names'):run('bspc','desktop',d,'-m',connected[0])
+ args=['xrandr']
+ for i,n in enumerate(connected):
+  args+=['--output',n,'--auto']
+  args+=['--primary'] if i==0 else ['--right-of',connected[i-1]]
+ for n,s in state:
+  if s=='disconnected':args+=['--output',n,'--off']
+ r=run(*args)
+ if r.returncode:raise RuntimeError(r.stderr.strip())
+ time.sleep(.4)
+ run('bspc','wm','-O',*connected)
+ existing=names('bspc','query','-D','--names')
+ for i in range(1,10):
+  target=connected[min((i-1)*len(connected)//9,len(connected)-1)]
+  if str(i) not in existing:run('bspc','monitor',target,'-a',str(i))
+  else:run('bspc','desktop',str(i),'-m',target)
+ for m in connected:
+  desks=names('bspc','query','-D','-m',m,'--names')
+  for d in desks:
+   if d not in map(str,range(1,10)) and len(desks)>1 and not names('bspc','query','-N','-d',d):
+    run('bspc','desktop',d,'-r')
+  order=[str(i) for i in range(1,10) if str(i) in names('bspc','query','-D','-m',m,'--names')]
+  extras=[d for d in names('bspc','query','-D','-m',m,'--names') if d not in order]
+  if order:run('bspc','monitor',m,'-o',*(order+extras))
+ run(str(Path.home()/'.local/bin/set-desktop-wallpaper'))
+ run(str(Path.home()/'.local/bin/polybar-launch'))
+
+def main(argv=None):
+ argv=sys.argv[1:] if argv is None else argv
+ if '--watch' not in argv:
+  apply(topology());return
+ cache=Path.home()/'.cache';cache.mkdir(exist_ok=True)
+ with (cache/'bspwm-monitor.lock').open('w') as lock:
+  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError:return
+  previous=None
+  while True:
+   try:
+    if session_active():
+     current,enabled=display_state()
+     if current!=previous:apply(current);previous=current
+     else:recover_disabled_outputs(current,enabled,True)
+   except (OSError,RuntimeError,sp.TimeoutExpired) as e:print(e,file=sys.stderr,flush=True)
+   time.sleep(5)
+
+if __name__=='__main__':main()

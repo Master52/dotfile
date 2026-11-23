@@ -1,0 +1,5 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+"$HOME/.local/bin/nchat-background" || exit
+exec kitty --class nchat --title WhatsApp --config "$HOME/.config/kitty/yazi.conf" tmux -L nchat attach-session -t nchat

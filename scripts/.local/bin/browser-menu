@@ -1,0 +1,3 @@
+#!/bin/sh
+# Show bookmarks immediately, with Add bookmark as the first row.
+exec "$HOME/.local/bin/browser-bookmarks" "$@"

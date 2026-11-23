@@ -1,0 +1,39 @@
+#!/usr/bin/bash
+# Pick an existing tmux session, or start Codex in a named session.
+export PATH="$HOME/.local/bin:$PATH"
+MENU="$HOME/.local/bin/desktop-menu"
+notify() { notify-send 'Codex Sessions' "$1"; }
+pick() { "$MENU" -p "$1"; }
+
+main() {
+    local name folder tmp sessions
+    for tool in tmux kitty codex; do
+        command -v "$tool" >/dev/null || { notify "Missing command: $tool"; return 1; }
+    done
+    sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null) || sessions=
+    name=$(printf '%s\n' "$sessions" | pick 'Session: select or type new name') || return 0
+    [[ -n $name ]] || return 0
+    # Exact tmux targets and safe, predictable session names.
+    if [[ $name == *[.:]* || $name == *$'\n'* || $name == *$'\r'* ]]; then
+        notify 'Session names cannot contain dots, colons, or newlines.'; return 1
+    fi
+    if ! tmux has-session -t "=$name" 2>/dev/null; then
+        command -v yazi >/dev/null || { notify 'Yazi is not installed.'; return 1; }
+        tmp=$(mktemp) || return 1
+        kitty --class codex-folder --title 'Choose Codex folder — navigate, then press q' \
+            --config "$HOME/.config/kitty/yazi.conf" yazi --cwd-file "$tmp" "$HOME"
+        folder=$(cat "$tmp")
+        rm -f -- "$tmp"
+        [[ -n $folder ]] || return 0
+        [[ -d $folder ]] || { notify "Folder does not exist: $folder"; return 1; }
+        folder=$(cd -- "$folder" && pwd -P) || return 1
+        # No shell interpolation: folder and name are passed as separate arguments.
+        if ! tmux new-session -d -s "$name" -c "$folder" -- "$(command -v codex)" --no-alt-screen; then
+            tmux has-session -t "=$name" 2>/dev/null || { notify 'Could not start the Codex session.'; return 1; }
+        fi
+    fi
+    exec kitty --class codex --title "Codex — $name" --config "$HOME/.config/kitty/yazi.conf" \
+        tmux attach-session -t "=$name"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi

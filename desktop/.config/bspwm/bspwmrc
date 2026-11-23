@@ -1,0 +1,37 @@
+#!/bin/sh
+export TERMINAL=kitty
+# Preserve workspaces and windows across bspwm reloads.
+if ! bspc query -D --names | grep -qx 1; then
+    bspc monitor -a 1 2 3 4 5 6 7 8 9
+fi
+bspc config border_width 2
+bspc config window_gap 12
+bspc config split_ratio 0.52
+bspc config normal_border_color '#313244'
+bspc config focused_border_color '#cba6f7'
+bspc config active_border_color '#89b4fa'
+bspc config presel_feedback_color '#a6e3a1'
+"$HOME/.local/bin/bspwm-window-behavior"
+bspc config pointer_modifier mod1
+bspc config borderless_monocle true
+bspc config gapless_monocle true
+bspc rule -a '*:*:Picture-in-Picture' state=floating sticky=on
+# Send RustDesk main and remote-session windows to workspace 9.
+bspc rule -a 'RustDesk' desktop=9
+bspc rule -a 'rustdesk' desktop=9
+bspc rule -a '*:rustdesk' desktop=9
+# Keep the Steam client on desktop 7.
+bspc rule -a 'Steam' desktop=7
+bspc rule -a 'steam' desktop=7
+# CCTV windows always open on desktop 8.
+bspc rule -a '*:cctv-camera' desktop=8 follow=on
+"$HOME/.local/bin/set-desktop-wallpaper"
+pgrep -u "$(id -u)" -x sxhkd >/dev/null || sxhkd &
+pgrep -u "$(id -u)" -x picom >/dev/null || "$HOME/.local/bin/bspwm-compositor" &
+"$HOME/.local/bin/desktop-services"
+if command -v nm-applet >/dev/null 2>&1; then
+    pgrep -u "$(id -u)" -x nm-applet >/dev/null || nm-applet &
+fi
+if command -v blueman-applet >/dev/null 2>&1; then
+    pgrep -u "$(id -u)" -f '(^|/)blueman-applet( |$)' >/dev/null || blueman-applet &
+fi

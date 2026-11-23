@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+"""Choose an installed desktop application to open the supplied files."""
+import pathlib
+import subprocess
+import sys
+from gi.repository import Gio, GLib
+
+
+def main():
+    if len(sys.argv) < 2:
+        return
+    apps = {}
+    for app in Gio.AppInfo.get_all():
+        if app.should_show():
+            label = f'{app.get_display_name()} — {app.get_id()}'
+            apps[label] = app
+    result = subprocess.run(
+        [str(pathlib.Path.home() / '.local/bin/desktop-menu'), '-p', 'Open with application'],
+        input='\n'.join(sorted(apps, key=str.casefold)) + '\n',
+        text=True, capture_output=True,
+    )
+    if result.returncode:
+        return
+    app = apps.get(result.stdout.rstrip('\n'))
+    if app is None:
+        return
+    files = [Gio.File.new_for_path(str(pathlib.Path(p).absolute())) for p in sys.argv[1:]]
+    try:
+        app.launch(files, Gio.AppLaunchContext())
+    except GLib.Error as error:
+        subprocess.run(['notify-send', 'Open with application', str(error)])
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,10 @@
+[Default Applications]
+application/pdf=org.pwmt.zathura.desktop
+x-scheme-handler/http=firefox.desktop
+x-scheme-handler/https=firefox.desktop
+text/html=firefox.desktop
+application/x-bittorrent=torrent-terminal.desktop
+x-scheme-handler/magnet=torrent-terminal.desktop
+
+[Added Associations]
+application/pdf=org.pwmt.zathura.desktop;

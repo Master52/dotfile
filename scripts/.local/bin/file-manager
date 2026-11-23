@@ -1,0 +1,14 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+if ! command -v yazi >/dev/null || ! command -v kitty >/dev/null; then
+    notify-send 'File manager setup' 'Install yazi and kitty to use the file manager.'
+    exit 1
+fi
+"$HOME/.local/bin/yazi-terminal-server" || exit 1
+runtime="${XDG_RUNTIME_DIR:-$HOME/.cache}/desktop-yazi"
+# Refresh the shared terminal's colours before opening a new themed window.
+kitten @ --to "unix:$runtime/kitty.sock" load-config "$HOME/.config/kitty/yazi.conf" >/dev/null 2>&1 || :
+exec kitty --detach --single-instance --instance-group desktop-yazi \
+    --class yazi --title Files --config "$HOME/.config/kitty/yazi.conf" \
+    --directory "$HOME" yazi "$@"

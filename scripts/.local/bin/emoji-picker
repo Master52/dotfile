@@ -1,0 +1,22 @@
+#!/bin/bash
+# Unicode data already includes rendered emoji; awk extracts glyphs and names.
+data="$HOME/.local/share/desktop-pickers/emoji-test.txt"
+[[ -r "$data" ]] || { notify-send 'Emoji picker' 'Emoji data file is missing.'; exit 1; }
+choices=$(awk '
+/; fully-qualified/ {
+    line=$0; sub(/^.*# /, "", line)
+    if (match(line, /[[:space:]]E[0-9.]+[[:space:]]+/)) {
+        glyph=substr(line, 1, RSTART-1)
+        name=substr(line, RSTART+RLENGTH)
+        sub(/[[:space:]]+$/, "", name)
+        print glyph "  " name
+    }
+}' "$data")
+if [[ ${1:-} == --list ]]; then printf '%s\n' "$choices"; exit; fi
+command -v xsel >/dev/null || { notify-send 'Emoji picker' 'Install xsel for clipboard support.'; exit 1; }
+selection=$(printf '%s\n' "$choices" | "$HOME/.local/bin/desktop-menu" -p Emoji) || exit 0
+[[ -n "$selection" ]] || exit 0
+grep -Fxq -- "$selection" <<< "$choices" || exit 0
+emoji=${selection%%  *}
+printf '%s' "$emoji" | xsel --clipboard --input || exit 1
+notify-send 'Emoji copied' "$emoji — paste with Ctrl+V"

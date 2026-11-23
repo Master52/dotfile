@@ -1,0 +1,191 @@
+#!/usr/bin/python3
+"""Dmenu controls and connection notifications for non-system data volumes."""
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import select
+import subprocess
+import sys
+import time
+
+HOME = Path.home()
+MENU = HOME / '.local/bin/desktop-menu'
+PROTECTED = {'/', '/boot', '/boot/efi', '/home', '/usr', '/var', '/etc', '/run', str(HOME)}
+
+
+def command(args, check=True):
+    result = subprocess.run(args, text=True, capture_output=True, timeout=120)
+    if check and result.returncode:
+        raise RuntimeError((result.stderr or result.stdout).strip())
+    return result
+
+
+def notify(title, body):
+    subprocess.run(['notify-send', '-i', 'drive-removable-media', title, body], check=False)
+
+
+def flatten(node):
+    yield node
+    for child in node.get('children', []):
+        yield from flatten(child)
+
+
+def volumes(data=None):
+    if data is None:
+        data = json.loads(command(['lsblk', '--json', '--bytes', '-o',
+            'PATH,NAME,TYPE,TRAN,RM,HOTPLUG,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINTS']).stdout)
+    result = []
+    for disk in data['blockdevices']:
+        nodes = list(flatten(disk))
+        # Exclude the entire OS disk, including boot and swap partitions.
+        if any(PROTECTED.intersection(n.get('mountpoints') or []) for n in nodes):
+            continue
+        for node in nodes:
+            if not node.get('fstype') or node['fstype'] in ('swap', 'crypto_LUKS', 'LVM2_member', 'linux_raid_member'):
+                continue
+            if node['type'] not in ('part', 'disk') or not node.get('size'):
+                continue
+            item = dict(node)
+            item['disk'] = disk['path']
+            item['usb'] = disk.get('tran') == 'usb'
+            item['removable'] = bool(item['usb'] or disk.get('rm') or disk.get('hotplug'))
+            item['mountpoints'] = [p for p in node.get('mountpoints', []) if p]
+            result.append(item)
+    return result
+
+
+def identity(volume):
+    return volume['path'], volume.get('uuid'), volume['size']
+
+
+def recheck(volume):
+    for current in volumes():
+        if identity(current) == identity(volume):
+            return current
+    raise RuntimeError('The selected drive disconnected or changed. Open the drive menu again.')
+
+
+def name(volume):
+    return ''.join(c if c.isprintable() else ' ' for c in (volume.get('label') or volume['name']))
+
+
+def choose(options, prompt):
+    selected = subprocess.run([str(MENU), '-p', prompt], input='\n'.join(options) + '\n',
+                              capture_output=True, text=True)
+    value = selected.stdout.strip()
+    return value if selected.returncode == 0 and value in options else None
+
+
+def mount(volume):
+    volume = recheck(volume)
+    did_mount = False
+    if not volume['mountpoints']:
+        command(['udisksctl', 'mount', '--block-device', volume['path']])
+        volume = recheck(volume)
+        did_mount = True
+    if not volume['mountpoints']:
+        raise RuntimeError('The drive has no accessible mount point.')
+    if did_mount:
+        notify('Drive mounted', f'{name(volume)}\n{volume["mountpoints"][0]}')
+    return volume
+
+
+def menu():
+    available = volumes()
+    if not available:
+        notify('Drives', 'No data volumes found. Connect a USB drive and press Alt+U.')
+        return
+    options = {}
+    for v in available:
+        status = 'mounted' if v['mountpoints'] else 'unmounted'
+        label = f'{name(v)} | {v["size"] / 1024**3:.1f} GiB | {v["fstype"]} | {"USB" if v["usb"] else "data drive"} | {status} | {v["path"]}'
+        options[label] = v
+    selected = choose(options, 'Drives')
+    if selected is None:
+        return
+    volume = recheck(options[selected])
+    actions = ['Open in Yazi' if volume['mountpoints'] else 'Mount and open in Yazi']
+    if volume['mountpoints']:
+        actions.append('Unmount')
+    else:
+        actions.append('Mount')
+    if volume['usb']:
+        actions.append('Safely remove USB drive')
+    action = choose(actions, name(volume))
+    if action is None:
+        return
+    if action in ('Open in Yazi', 'Mount and open in Yazi', 'Mount'):
+        mounted = mount(volume)
+        if action != 'Mount':
+            subprocess.run([str(HOME / '.local/bin/file-manager'), mounted['mountpoints'][0]], check=True)
+    elif action == 'Unmount':
+        volume = recheck(volume)
+        command(['udisksctl', 'unmount', '--block-device', volume['path']])
+        notify('Drive unmounted', name(volume))
+    elif action == 'Safely remove USB drive':
+        if choose(['Cancel', 'Unmount all volumes and safely remove'], 'Remove ' + volume['disk']) != 'Unmount all volumes and safely remove':
+            return
+        volume = recheck(volume)
+        siblings = [v for v in volumes() if v['disk'] == volume['disk']]
+        for sibling in siblings:
+            if sibling['mountpoints']:
+                command(['udisksctl', 'unmount', '--block-device', sibling['path']])
+        command(['udisksctl', 'power-off', '--block-device', volume['disk']])
+        notify('Safe to unplug', name(volume))
+
+
+def watch():
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR', str(HOME / '.cache')))
+    runtime.mkdir(parents=True, exist_ok=True)
+    with (runtime / 'desktop-drive-watch.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        previous = {identity(v): v for v in volumes() if v['removable']}
+        monitor = subprocess.Popen(['udevadm', 'monitor', '--udev', '--subsystem-match=block'], stdout=subprocess.PIPE)
+        deadline = None
+        try:
+            while monitor.poll() is None:
+                ready, _, _ = select.select([monitor.stdout], [], [], .5)
+                if ready:
+                    if not os.read(monitor.stdout.fileno(), 65536):
+                        break
+                    deadline = time.monotonic() + .8
+                if deadline is not None and time.monotonic() >= deadline:
+                    current = {identity(v): v for v in volumes() if v['removable']}
+                    for key in current.keys() - previous.keys():
+                        notify('Drive connected: ' + name(current[key]), 'Press Alt+U to mount and open it in Yazi.')
+                    for key in previous.keys() - current.keys():
+                        notify('Drive disconnected', name(previous[key]))
+                    previous, deadline = current, None
+        finally:
+            monitor.terminate()
+            monitor.wait()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--watch', action='store_true')
+    parser.add_argument('--list', action='store_true')
+    args = parser.parse_args()
+    if args.watch:
+        watch()
+    elif args.list:
+        print(json.dumps(volumes(), indent=2))
+    else:
+        menu()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'Drive operation failed: {error}', file=sys.stderr)
+        message = str(error)
+        if 'busy' in message.lower():
+            message += '\nClose files or leave the drive folder, then try again.'
+        notify('Drive operation failed', message)
+        sys.exit(1)

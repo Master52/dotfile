@@ -1,0 +1,48 @@
+[global]
+    monitor = 0
+    follow = mouse
+    origin = top-right
+    offset = (22, 62)
+    width = (280, 380)
+    height = (0, 200)
+    notification_limit = 3
+    font = {{ui_font}} 11
+    padding = 16
+    horizontal_padding = 16
+    frame_width = 1
+    frame_color = "{{surface}}"
+    separator_color = frame
+    corner_radius = 10
+    format = "<b>%s</b>\n%b"
+    word_wrap = yes
+    markup = full
+    max_icon_size = 32
+    progress_bar = true
+    progress_bar_height = 4
+    progress_bar_frame_width = 0
+    progress_bar_corner_radius = 2
+    progress_bar_min_width = 180
+    progress_bar_max_width = 280
+    history_length = 30
+    mouse_left_click = close_current
+    mouse_middle_click = do_action
+    mouse_right_click = close_all
+[urgency_low]
+    background = "{{surface}}"
+    foreground = "{{subtext}}"
+    timeout = 4
+[urgency_normal]
+    background = "{{surface}}"
+    foreground = "{{fg}}"
+    timeout = 7
+[urgency_critical]
+    background = "{{surface}}"
+    foreground = "{{red}}"
+    frame_color = "{{red}}"
+    timeout = 0
+
+[desktop-feedback]
+    appname = Desktop
+    history_ignore = yes
+    timeout = 2
+    format = "<b>%s</b>  %b"

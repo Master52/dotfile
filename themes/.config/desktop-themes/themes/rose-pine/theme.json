@@ -1,0 +1,27 @@
+{
+  "name": "Ros\u00e9 Pine",
+  "colors": {
+    "bg": "#191724",
+    "fg": "#e0def4",
+    "accent": "#c4a7e7",
+    "surface": "#26233a",
+    "muted": "#6e6a86",
+    "red": "#eb6f92",
+    "green": "#9ccfd8",
+    "yellow": "#f6c177",
+    "blue": "#31748f",
+    "cyan": "#9ccfd8",
+    "subtext": "#908caa",
+    "overlay": "#403d52",
+    "crust": "#12101b",
+    "mantle": "#1f1d2e"
+  },
+  "gtk": "Desktop-rose-pine",
+  "icons": "Desktop-rose-pine",
+  "cursor": "Bibata-Modern-Amber",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "DejaVu Sans Mono",
+  "opacity": 0.94,
+  "wallpaper": "wallpaper.png"
+}

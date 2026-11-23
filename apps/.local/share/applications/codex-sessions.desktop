@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Codex Sessions
+Comment=Attach to tmux sessions or start Codex in a chosen folder
+Exec=/home/master/.local/bin/codex-tmux
+TryExec=/home/master/.local/bin/codex-tmux
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;

@@ -1,0 +1,31 @@
+{
+  "name": "Graphite Sage",
+  "colors": {
+    "bg": "#202321",
+    "fg": "#e7e9e2",
+    "accent": "#a8b99a",
+    "surface": "#303630",
+    "muted": "#939c90",
+    "red": "#d79891",
+    "green": "#adc49a",
+    "yellow": "#d2c39b",
+    "blue": "#a4b3ad",
+    "cyan": "#aec4b5",
+    "subtext": "#c2c9bd",
+    "overlay": "#555f53",
+    "crust": "#151815",
+    "mantle": "#272c27"
+  },
+  "gtk": "Desktop-graphite-sage",
+  "icons": "Desktop-graphite-sage",
+  "cursor": "Bibata-Modern-Classic",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "JetBrains Mono",
+  "opacity": 0.97,
+  "wallpaper": "wallpaper.png",
+  "mode": "dark",
+  "window_gap": 14,
+  "border_width": 1,
+  "ui_font_size": 11
+}

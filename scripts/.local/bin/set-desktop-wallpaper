@@ -1,0 +1,4 @@
+#!/bin/sh
+# Used by bspwm startup and monitor hotplug; preserve the selected theme.
+wallpaper=$("$HOME/.local/bin/desktop-theme" --wallpaper) || exit 1
+exec feh --no-fehbg --bg-fill "$wallpaper"

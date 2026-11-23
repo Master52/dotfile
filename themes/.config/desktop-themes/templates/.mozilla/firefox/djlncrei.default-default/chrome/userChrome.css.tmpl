@@ -1,0 +1,148 @@
+@import url("desktop-theme.css");
+
+/* Quiet, compact browser chrome using the desktop palette. */
+:root {
+  color-scheme: var(--desktop-mode) !important;
+  font-family: var(--desktop-font) !important;
+  font-size: 13px !important;
+  --toolbar-bgcolor: var(--desktop-bg) !important;
+  --toolbar-color: var(--desktop-fg) !important;
+  --lwt-accent-color: var(--desktop-bg) !important;
+  --lwt-text-color: var(--desktop-fg) !important;
+  --lwt-toolbar-field-background-color: var(--desktop-mantle) !important;
+  --lwt-toolbar-field-color: var(--desktop-fg) !important;
+  --lwt-toolbar-field-focus-background-color: var(--desktop-surface) !important;
+  --lwt-toolbar-field-focus-color: var(--desktop-fg) !important;
+  --toolbar-field-background-color: var(--desktop-mantle) !important;
+  --toolbar-field-color: var(--desktop-fg) !important;
+  --toolbar-field-focus-background-color: var(--desktop-surface) !important;
+  --toolbar-field-focus-color: var(--desktop-fg) !important;
+  --toolbar-field-focus-border-color: var(--desktop-accent) !important;
+  --toolbarbutton-icon-fill: var(--desktop-fg) !important;
+  --toolbarbutton-hover-background: color-mix(in srgb, var(--desktop-fg) 8%, transparent) !important;
+  --toolbarbutton-active-background: color-mix(in srgb, var(--desktop-fg) 14%, transparent) !important;
+  --toolbarbutton-border-radius: 7px !important;
+  --tab-border-radius: 8px !important;
+  --tab-min-height: 30px !important;
+  --tab-selected-bgcolor: var(--desktop-surface) !important;
+  --tab-selected-textcolor: var(--desktop-fg) !important;
+  --tabs-border-color: transparent !important;
+  --focus-outline-color: var(--desktop-accent) !important;
+  --arrowpanel-background: var(--desktop-surface) !important;
+  --arrowpanel-color: var(--desktop-fg) !important;
+  --arrowpanel-border-color: var(--desktop-overlay) !important;
+  --arrowpanel-border-radius: 10px !important;
+  --panel-background: var(--desktop-surface) !important;
+  --panel-color: var(--desktop-fg) !important;
+}
+
+#navigator-toolbox {
+  background: var(--desktop-bg) !important;
+  color: var(--desktop-fg) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--desktop-fg) 10%, transparent) !important;
+}
+
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar {
+  background: var(--desktop-bg) !important;
+  color: var(--desktop-fg) !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+#nav-bar {
+  min-height: 40px !important;
+  padding-inline: 6px !important;
+}
+
+.tab-background {
+  margin-block: 4px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.tab-background[selected] {
+  background: var(--desktop-surface) !important;
+}
+
+.tabbrowser-tab:not([selected]):hover .tab-background {
+  background: color-mix(in srgb, var(--desktop-fg) 6%, transparent) !important;
+}
+
+/* Count visible tabs, including pinned tabs; ignore closing/hidden tabs.
+   Keep tab groups and split views accessible, and leave vertical tabs alone. */
+:root:not([customizing]) #navigator-toolbox:has(#tabbrowser-tabs[orient="horizontal"])
+  #TabsToolbar:has(.tabbrowser-tab:not([hidden], [closing])):not(:has(tab-group, tab-split-view-wrapper)):not(:has(.tabbrowser-tab:not([hidden], [closing]) ~ .tabbrowser-tab:not([hidden], [closing]))):not(:has(.tabbrowser-tab[pinned]:not([hidden], [closing])):has(.tabbrowser-tab:not([pinned], [hidden], [closing]))) {
+  visibility: collapse !important;
+}
+
+/* Firefox 158 provides a second set of window controls in the navigation bar.
+   Show them when the single-tab strip collapses. Respect an always-on menu bar. */
+:root:not([customizing], [inFullscreen])
+  #navigator-toolbox:has(#tabbrowser-tabs[orient="horizontal"]):has(#TabsToolbar .tabbrowser-tab:not([hidden], [closing])):not(:has(#TabsToolbar tab-group, #TabsToolbar tab-split-view-wrapper)):not(:has(#TabsToolbar .tabbrowser-tab:not([hidden], [closing]) ~ .tabbrowser-tab:not([hidden], [closing]))):not(:has(#TabsToolbar .tabbrowser-tab[pinned]:not([hidden], [closing])):has(#TabsToolbar .tabbrowser-tab:not([pinned], [hidden], [closing])))
+  > #toolbar-menubar[autohide="true"] ~ #nav-bar > .titlebar-buttonbox-container {
+  display: flex !important;
+}
+
+#urlbar,
+#searchbar {
+  font-family: var(--desktop-font) !important;
+  font-size: 13px !important;
+  color: var(--desktop-fg) !important;
+}
+
+#urlbar-background,
+#searchbar {
+  background: var(--desktop-mantle) !important;
+  border: 1px solid color-mix(in srgb, var(--desktop-fg) 10%, transparent) !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+
+#urlbar[focused] > #urlbar-background,
+#searchbar:focus-within {
+  border-color: var(--desktop-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--desktop-accent) 18%, transparent) !important;
+}
+
+#urlbar[open] > #urlbar-background {
+  background: var(--desktop-surface) !important;
+}
+
+.urlbarView-row[selected] .urlbarView-row-inner {
+  background: color-mix(in srgb, var(--desktop-accent) 16%, var(--desktop-surface)) !important;
+  color: var(--desktop-fg) !important;
+  border-radius: 6px !important;
+}
+
+menupopup,
+panel {
+  --panel-background: var(--desktop-surface) !important;
+  --panel-color: var(--desktop-fg) !important;
+  --panel-border-color: var(--desktop-overlay) !important;
+  --panel-border-radius: 10px !important;
+  font-family: var(--desktop-font) !important;
+}
+
+#sidebar-box {
+  background: var(--desktop-bg) !important;
+  color: var(--desktop-fg) !important;
+}
+
+/* An enabled bookmarks bar appears on toolbar hover or keyboard focus.
+   A bar explicitly hidden through Firefox's menu stays hidden. */
+:root:not([customizing]) #PersonalToolbar:not([collapsed="true"]) {
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding-block: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+
+:root:not([customizing]) #navigator-toolbox:is(:hover, :focus-within)
+  #PersonalToolbar:not([collapsed="true"]) {
+  min-height: 28px !important;
+  max-height: 36px !important;
+  visibility: visible !important;
+}

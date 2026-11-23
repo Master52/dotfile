@@ -1,0 +1,8 @@
+# Picom v13 presets: soft arrival, quick dismissal, smooth tiling.
+animations = (
+ { triggers = [ "open", "show" ]; preset = "appear"; duration = 0.18; scale = 0.98;
+   suppressions = [ "geometry" ]; },
+ { triggers = [ "close", "hide" ]; preset = "disappear"; duration = 0.14; scale = 0.99;
+   suppressions = [ "geometry" ]; },
+ { triggers = [ "geometry" ]; preset = "geometry-change"; duration = 0.18; }
+);

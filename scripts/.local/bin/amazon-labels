@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "$HOME/amazon_pdf/.venv/bin/python" "$HOME/amazon_pdf/amazon_labels.py" "$@"

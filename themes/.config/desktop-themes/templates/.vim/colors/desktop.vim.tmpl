@@ -1,0 +1,27 @@
+set background={{mode}}
+hi clear
+if exists("syntax_on") | syntax reset | endif
+let g:colors_name = 'desktop'
+hi Normal guifg={{fg}} guibg={{bg}}
+hi Comment guifg={{muted}} gui=italic
+hi Constant guifg={{cyan}}
+hi String guifg={{green}}
+hi Identifier guifg={{fg}}
+hi Function guifg={{blue}}
+hi Statement guifg={{accent}} gui=bold
+hi PreProc guifg={{cyan}}
+hi Type guifg={{blue}}
+hi Special guifg={{yellow}}
+hi LineNr guifg={{muted}}
+hi CursorLine guibg={{surface}}
+hi CursorLineNr guifg={{accent}} gui=bold
+hi Visual guifg={{bg}} guibg={{accent}}
+hi Search guifg={{bg}} guibg={{yellow}}
+hi IncSearch guifg={{bg}} guibg={{accent}}
+hi StatusLine guifg={{fg}} guibg={{surface}} gui=bold
+hi StatusLineNC guifg={{subtext}} guibg={{surface}}
+hi Pmenu guifg={{fg}} guibg={{surface}}
+hi PmenuSel guifg={{bg}} guibg={{accent}}
+hi VertSplit guifg={{overlay}} guibg={{bg}}
+hi Error guifg={{red}} guibg={{bg}}
+hi SpellBad guisp={{red}} gui=undercurl

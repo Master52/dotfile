@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reapply the selected theme after a bspwm reload or login.
+exec "$HOME/.local/bin/desktop-theme" --refresh

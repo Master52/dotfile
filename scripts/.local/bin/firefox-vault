@@ -1,0 +1,212 @@
+#!/usr/bin/python3
+"""Unlock Persnal with pass, run Firefox, and lock its encrypted folder on exit."""
+import argparse
+from contextlib import contextmanager
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+
+def config_path():
+    return Path.home() / '.config/firefox-launcher/vault.json'
+
+
+def load_config():
+    config = json.loads(config_path().read_text())
+    for key in ('name', 'profile_path', 'cache_path', 'cipher_dir', 'mount_dir', 'pass_entry', 'binary'):
+        if not isinstance(config.get(key), str) or not config[key]:
+            raise ValueError(f'Missing vault setting: {key}')
+    return config
+
+
+def notify(message):
+    try:
+        subprocess.run(['notify-send', 'Firefox Persnal', message], timeout=10, check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+@contextmanager
+def guard(config, filename='control.lock', nonblocking=False):
+    path = Path(config['cipher_dir']).parent / filename
+    with path.open('a') as lock:
+        os.chmod(path, 0o600)
+        flags = fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0)
+        fcntl.flock(lock, flags)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def is_mounted(config):
+    # stat()/ismount() can return false for a disconnected FUSE filesystem.
+    # The kernel mount table remains authoritative even in that failure state.
+    mountpoint = os.path.abspath(config['mount_dir'])
+    for line in Path('/proc/self/mountinfo').read_text().splitlines():
+        fields = line.split()
+        path = re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), fields[4])
+        if path == mountpoint:
+            return True
+    return False
+
+
+def profile_busy(config):
+    # Firefox uses a POSIX record lock, not the mere presence of .parentlock.
+    path = Path(config['mount_dir']) / 'profile/.parentlock'
+    try:
+        with path.open('r+') as lock:
+            try:
+                fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return False
+            except BlockingIOError:
+                return True
+    except FileNotFoundError:
+        return False
+
+
+def require_fresh_unlock(config):
+    if not config.get('require_fresh_unlock', False):
+        return
+    store = Path(os.environ.get('PASSWORD_STORE_DIR', str(Path.home() / '.password-store'))).resolve()
+    folder = (store / config['pass_entry']).parent
+    while not (folder / '.gpg-id').is_file():
+        if folder == store or store not in folder.parents:
+            raise ValueError('Cannot find the password-store recipients for Persnal.')
+        folder = folder.parent
+    recipients = [line.strip() for line in (folder / '.gpg-id').read_text().splitlines()
+                  if line.strip() and not line.lstrip().startswith('#')]
+    keys = subprocess.run(['gpg', '--batch', '--with-colons', '--with-keygrip', '--list-secret-keys', '--', *recipients],
+                          capture_output=True, text=True, timeout=15, check=False)
+    if keys.returncode:
+        raise ValueError('Cannot identify Persnal’s password-store key; refusing an unprompted unlock.')
+    grips = [fields[9] for line in keys.stdout.splitlines()
+             if (fields := line.split(':'))[0] == 'grp' and len(fields) > 9
+             and re.fullmatch(r'[0-9A-Fa-f]{40}', fields[9])]
+    if not grips:
+        raise ValueError('No password-store keygrips found for Persnal.')
+    commands = ''.join(f'CLEAR_PASSPHRASE --mode=normal {grip}\n' for grip in grips) + '/bye\n'
+    cleared = subprocess.run(['gpg-connect-agent'], input=commands, capture_output=True,
+                             text=True, timeout=15, check=False)
+    if cleared.returncode or any(line.startswith('ERR') for line in cleared.stdout.splitlines()):
+        raise ValueError('Could not clear the cached unlock; Persnal remains locked.')
+
+
+def mount(config):
+    if is_mounted(config):
+        return
+    mountpoint = Path(config['mount_dir'])
+    # A locked mountpoint is inaccessible, preventing accidental blank profiles.
+    mountpoint.chmod(0o700)
+    try:
+        if any(mountpoint.iterdir()):
+            raise ValueError('The locked mountpoint contains unexpected files; refusing to cover them.')
+        require_fresh_unlock(config)
+        key = subprocess.run(['pass', 'show', config['pass_entry']], capture_output=True,
+                             timeout=120, check=False)
+        if key.returncode or not key.stdout.strip():
+            raise ValueError('Password-store unlock was cancelled or failed.')
+        result = subprocess.run([config['binary'], '-q', '-nosyslog', '-passfile', '/dev/stdin',
+                                 config['cipher_dir'], config['mount_dir']],
+                                input=key.stdout, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=30, check=False)
+        if result.returncode or not is_mounted(config):
+            raise ValueError('Could not mount Persnal’s encrypted folder.')
+    finally:
+        if not is_mounted(config):
+            mountpoint.chmod(0o000)
+    if not (mountpoint / 'profile/prefs.js').is_file():
+        unmount(config)
+        raise ValueError('The encrypted Firefox profile is incomplete; refusing to start Firefox.')
+
+
+def unmount(config):
+    if not is_mounted(config):
+        Path(config['mount_dir']).chmod(0o000)
+        return True
+    if profile_busy(config):
+        return False
+    # Never use lazy/forced unmount: open files must keep the vault accessible.
+    result = subprocess.run(['fusermount3', '-u', config['mount_dir']],
+                            capture_output=True, timeout=15, check=False)
+    if result.returncode or is_mounted(config):
+        return False
+    Path(config['mount_dir']).chmod(0o000)
+    return True
+
+
+def watch(config):
+    try:
+        with guard(config, 'watch.lock', nonblocking=True):
+            deadline = time.monotonic() + 30
+            observed_browser = False
+            notified = False
+            while is_mounted(config):
+                if profile_busy(config):
+                    observed_browser = True
+                elif observed_browser or time.monotonic() >= deadline:
+                    with guard(config):
+                        if unmount(config):
+                            return
+                    if not notified:
+                        notify('Persnal is still busy. Its encrypted folder will lock when all files close.')
+                        notified = True
+                time.sleep(1)
+    except BlockingIOError:
+        return  # Another watcher already owns this vault.
+
+
+def open_browser(config, url=None, private=False):
+    with guard(config):
+        mount(config)
+        command = ['/usr/bin/firefox', '--profile', config['profile_path']]
+        if private:
+            command += ['--private-window', url or 'about:privatebrowsing']
+        else:
+            command += ['--new-tab', url] if url else ['--new-window', 'about:newtab']
+        try:
+            subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            unmount(config)
+            raise
+        subprocess.Popen([str(Path(__file__).resolve()), 'watch'], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def main(argv=None):
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['open', 'lock', 'status', 'watch'])
+    parser.add_argument('--url')
+    parser.add_argument('--private', action='store_true')
+    args = parser.parse_args(argv)
+    config = load_config()
+    if args.action == 'status':
+        print('Persnal: unlocked' if is_mounted(config) else 'Persnal: locked')
+    elif args.action == 'watch':
+        watch(config)
+    elif args.action == 'lock':
+        with guard(config):
+            if not unmount(config):
+                raise ValueError('Close every Persnal Firefox window before locking it.')
+        print('Persnal: locked')
+    else:
+        open_browser(config, args.url, args.private)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        message = str(error)
+        print(f'Firefox vault: {message}', file=sys.stderr)
+        notify(message)
+        sys.exit(1)

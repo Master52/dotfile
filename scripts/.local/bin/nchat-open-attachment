@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+[[ $# == 1 && -f $1 ]] || exit 1
+mime=$(file --brief --mime-type -- "$1") || exit 1
+case "$mime" in
+    image/*)
+        if [[ -n ${KITTY_WINDOW_ID:-} && -t 0 && -t 1 ]]; then
+            cleanup() { kitten icat --clear --stdin=no; }
+            trap cleanup EXIT
+            trap 'exit 130' INT
+            trap 'exit 143' TERM
+            clear
+            printf 'Press any key to return to nchat.\n'
+            kitten icat --stdin=no --fit=both --hold -- "$1"
+        else
+            setsid nsxiv -- "$1" >/dev/null 2>&1 < /dev/null &
+        fi
+        ;;
+    audio/*|video/*|application/ogg)
+        setsid mpv -- "$1" >/dev/null 2>&1 < /dev/null &
+        ;;
+    *) gio open "$1" >/dev/null 2>&1 & ;;
+esac

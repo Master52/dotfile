@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+"""Battery thresholds and charger notifications, once per discharge cycle."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+
+def read_power(root=Path('/sys/class/power_supply')):
+    batteries = []
+    online = []
+    for device in root.iterdir():
+        try:
+            kind = (device / 'type').read_text().strip()
+            if kind == 'Battery':
+                if (device / 'present').exists() and (device / 'present').read_text().strip() == '0':
+                    continue
+                batteries.append(int((device / 'capacity').read_text()))
+            elif (device / 'online').exists():
+                online.append((device / 'online').read_text().strip() == '1')
+        except (OSError, ValueError):
+            continue
+    if not batteries:
+        return None
+    return {'percent': min(batteries), 'ac': any(online)}
+
+
+def events(current, previous, warned):
+    result = []
+    percent, ac = current['percent'], current['ac']
+    if previous is not None and previous['ac'] != ac:
+        result.append(('normal', 'Charger connected' if ac else 'Charger disconnected', f'Battery: {percent}%', 'charger'))
+    if ac or percent >= 25:
+        warned = 0
+    elif percent <= 10 and warned < 2:
+        result.append(('critical', 'Battery critically low', f'{percent}% remaining — connect your charger.', 'battery'))
+        warned = 2
+    elif percent <= 20 and warned < 1:
+        result.append(('normal', 'Battery low', f'{percent}% remaining — consider connecting your charger.', 'battery'))
+        warned = 1
+    return result, warned
+
+
+def main():
+    if '--status' in sys.argv:
+        print(json.dumps(read_power()))
+        return
+    runtime = Path(os.environ.get('XDG_RUNTIME_DIR', str(Path.home() / '.cache')))
+    runtime.mkdir(parents=True, exist_ok=True)
+    with (runtime / 'desktop-battery-watch.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        previous, warned = None, 0
+        while True:
+            try:
+                current = read_power()
+                if current is None:
+                    return
+                notifications, warned = events(current, previous, warned)
+                for urgency, title, body, tag in notifications:
+                    subprocess.run(['notify-send', '-a', 'Power', '-u', urgency, '-i',
+                                    'battery-caution' if tag == 'battery' else 'battery',
+                                    '-h', 'string:x-dunst-stack-tag:power-state', title, body], check=False)
+                previous = current
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                print(f'Battery watcher: {error}', file=sys.stderr, flush=True)
+            time.sleep(15)
+
+
+if __name__ == '__main__':
+    main()

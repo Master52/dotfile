@@ -1,0 +1,58 @@
+@import url("desktop-theme.css");
+
+/* Apply the desktop palette to Firefox's start page. */
+@-moz-document url("about:home"), url("about:newtab") {
+  :root {
+    color-scheme: var(--desktop-mode) !important;
+    --newtab-background-color: var(--desktop-bg) !important;
+    --newtab-background-color-secondary: var(--desktop-surface) !important;
+    --newtab-text-primary-color: var(--desktop-fg) !important;
+    --newtab-text-secondary-color: var(--desktop-muted) !important;
+    --newtab-primary-action-background: var(--desktop-accent) !important;
+    --newtab-element-hover-color: var(--desktop-mantle) !important;
+    --newtab-element-secondary-color: var(--desktop-surface) !important;
+    --newtab-border-color: var(--desktop-overlay) !important;
+    --newtab-textbox-focus-color: var(--desktop-accent) !important;
+  }
+
+  body {
+    background: var(--desktop-bg) !important;
+    color: var(--desktop-fg) !important;
+    font-family: var(--desktop-font) !important;
+  }
+
+  .search-wrapper .search-handoff-button,
+  .search-wrapper input {
+    background-color: var(--desktop-surface) !important;
+    color: var(--desktop-fg) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 6px color-mix(in srgb, var(--desktop-bg) 35%, transparent) !important;
+  }
+
+  .top-site-outer .tile {
+    border-radius: 12px !important;
+    background-color: var(--desktop-surface) !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Glass surfaces are scoped to Firefox home/new tab pages. */
+@-moz-document url("about:home"), url("about:newtab") {
+  body {
+    background: radial-gradient(ellipse at 18% 15%, #42c8e533, transparent 55%),
+                radial-gradient(ellipse at 85% 90%, #8c7fdf33, transparent 60%),
+                linear-gradient(135deg, #080f23, #143854 55%, #171730) fixed !important;
+  }
+  .search-wrapper .search-handoff-button, .search-wrapper input,
+  .top-site-outer .tile {
+    background: linear-gradient(135deg, #eef7ff18, #89dfff09) !important;
+    border: 1px solid #bfefff30 !important;
+    border-radius: 18px !important;
+    backdrop-filter: blur(24px) saturate(125%);
+    box-shadow: inset 0 1px #ffffff14, 0 12px 32px #080f1e30 !important;
+  }
+  .top-site-outer:hover {
+    background: #eef7ff0d !important;
+    border-radius: 20px !important;
+  }
+}

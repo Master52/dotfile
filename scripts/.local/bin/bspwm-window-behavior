@@ -1,0 +1,7 @@
+#!/bin/sh
+# Keep keyboard/click focus stable when the pointer crosses a tiled window.
+bspc config focus_follows_pointer false
+bspc config pointer_follows_focus false
+bspc config click_to_focus button1
+bspc config honor_size_hints floating
+bspc config external_rules_command "$HOME/.local/libexec/bspwm-window-rules.py"

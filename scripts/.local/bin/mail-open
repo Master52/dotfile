@@ -1,0 +1,6 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+mkdir -p "$HOME/.cache"
+nohup "$HOME/.local/bin/mail-watch" >>"$HOME/.cache/mail-watch.log" 2>&1 </dev/null &
+exec kitty --config "$HOME/.config/kitty/yazi.conf" --class Aerc --title Mail aerc

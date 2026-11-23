@@ -1,0 +1,15 @@
+#!/bin/sh
+if ! command -v clipmenu >/dev/null; then
+    notify-send 'Clipboard history' 'Install clipmenu and xsel for clipboard history.'
+    exit 1
+fi
+. "$HOME/.config/clipmenu/settings"
+found=false
+for index in "$CM_DIR"/clipmenu.*/line_cache; do
+    if [ -s "$index" ]; then found=true; break; fi
+done
+if [ "$found" = false ]; then
+    notify-send 'Clipboard history is empty' 'Copy some text, then press Alt+P. Select an entry and paste with Ctrl+V.'
+    exit 0
+fi
+exec clipmenu -p Clipboard

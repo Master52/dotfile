@@ -1,0 +1,4 @@
+#!/bin/sh
+# Use the installed magic database rather than the build-only path.
+export MAGIC=/usr/share/misc/magic.mgc
+exec /home/master/.local/libexec/nchat/nchat "$@"

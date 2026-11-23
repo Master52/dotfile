@@ -1,0 +1,10 @@
+
+! Desktop rice cursor and font rendering
+Xft.antialias: 1
+Xft.hinting: 1
+Xft.hintstyle: hintslight
+Xcursor.theme: Bibata-Modern-Classic
+Xcursor.size: 24
+sxiv.background: #2e3440
+sxiv.foreground: #eceff4
+sxiv.font: DejaVu Sans Mono:size=11

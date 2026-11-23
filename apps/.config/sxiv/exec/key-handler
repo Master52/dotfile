@@ -1,0 +1,3 @@
+#!/bin/sh
+# sxiv passes the current or marked file paths through stdin.
+exec "$HOME/.local/bin/sxiv-tools" action "$1"

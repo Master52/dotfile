@@ -1,0 +1,31 @@
+{
+  "name": "Graphite",
+  "colors": {
+    "bg": "#1c1c1e",
+    "fg": "#f2f2f7",
+    "accent": "#409cff",
+    "surface": "#2c2c2e",
+    "muted": "#98989d",
+    "red": "#ff6961",
+    "green": "#6bd083",
+    "yellow": "#ffd60a",
+    "blue": "#409cff",
+    "cyan": "#64d2ff",
+    "subtext": "#c7c7cc",
+    "overlay": "#48484a",
+    "crust": "#111113",
+    "mantle": "#242426"
+  },
+  "gtk": "Desktop-graphite",
+  "icons": "Desktop-graphite",
+  "cursor": "Bibata-Modern-Classic",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "JetBrains Mono",
+  "opacity": 0.93,
+  "wallpaper": "wallpaper-custom.png",
+  "mode": "dark",
+  "window_gap": 10,
+  "border_width": 1,
+  "ui_font_size": 11
+}

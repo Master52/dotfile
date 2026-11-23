@@ -1,0 +1,27 @@
+{
+  "name": "Nord",
+  "colors": {
+    "bg": "#2e3440",
+    "fg": "#eceff4",
+    "accent": "#88c0d0",
+    "surface": "#3b4252",
+    "muted": "#616e88",
+    "red": "#bf616a",
+    "green": "#a3be8c",
+    "yellow": "#ebcb8b",
+    "blue": "#81a1c1",
+    "cyan": "#8fbcbb",
+    "subtext": "#d8dee9",
+    "overlay": "#4c566a",
+    "crust": "#242933",
+    "mantle": "#272d38"
+  },
+  "gtk": "Desktop-nord",
+  "icons": "Desktop-nord",
+  "cursor": "Bibata-Modern-Classic",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "DejaVu Sans Mono",
+  "opacity": 0.94,
+  "wallpaper": "wallpaper.png"
+}

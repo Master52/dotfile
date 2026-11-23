@@ -1,0 +1,3 @@
+#!/bin/sh
+# Steam requires explicit NVIDIA PRIME selection on this hybrid laptop.
+exec /usr/bin/prime-run /usr/bin/steam "$@"

@@ -1,0 +1,38 @@
+#!/bin/bash
+# Print GPU telemetry without querying a suspended NVIDIA GPU.
+shopt -s nullglob
+devices=() drivers=() intel=false
+for card in /sys/class/drm/card[0-9]; do
+    device=$card/device
+    driver=$(readlink -f -- "$device/driver") || continue
+    driver=${driver##*/}
+    devices+=("$device") drivers+=("$driver")
+    [[ $driver != i915 ]] || intel=true
+done
+for index in "${!devices[@]}"; do
+    [[ ${drivers[index]} == nvidia ]] || continue
+    device=${devices[index]}
+    state=
+    [[ ! -r $device/power/runtime_status ]] || read -r state < "$device/power/runtime_status"
+    if [[ $state == suspended ]]; then
+        if "$intel"; then printf 'Intel\n'; else printf 'Sleep\n'; fi
+        exit 0
+    fi
+    if result=$(timeout 2 nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null); then
+        value=${result%%$'\n'*}
+        value=${value//[[:space:]]/}
+        if [[ $value =~ ^[0-9]+$ ]]; then
+            printf 'MX %s%%\n' "$value"
+            exit 0
+        fi
+    fi
+done
+for device in "${devices[@]}"; do
+    [[ -r $device/gpu_busy_percent ]] || continue
+    read -r value < "$device/gpu_busy_percent" || continue
+    if [[ $value =~ ^[0-9]+$ ]]; then
+        printf '%s%%\n' "$value"
+        exit 0
+    fi
+done
+if "$intel"; then printf 'Intel\n'; else printf 'N/A\n'; fi

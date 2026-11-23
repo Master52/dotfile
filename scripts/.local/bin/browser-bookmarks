@@ -1,0 +1,346 @@
+#!/usr/bin/bash
+# Firefox bookmark capture and dmenu launcher backed by ~/recutils.
+BOOKMARKS="$HOME/recutils"
+MENU="$HOME/.local/bin/desktop-menu"
+XDOTOOL="$HOME/.local/bin/xdotool"
+
+
+notify() { timeout 10 notify-send Bookmarks "$1" >/dev/null 2>&1; }
+fail() { notify "$1"; exit 1; }
+run() { timeout 10 "$@"; }
+trim() {
+    REPLY=$1
+    REPLY="${REPLY#"${REPLY%%[![:space:]]*}"}"
+    REPLY="${REPLY%"${REPLY##*[![:space:]]}"}"
+}
+valid_url() {
+    local url=$1 authority host
+    [[ $url != *[[:space:]]* && ${url,,} =~ ^https?://([^/?#]+) ]] || return 1
+    authority=${BASH_REMATCH[1]}
+    host=${authority##*@}
+    if [[ $host == \[* ]]; then
+        [[ $host =~ ^\[[0-9a-fA-F:.]+\](:[^:]*)?$ ]]
+    else
+        host=${host%%:*}
+        [[ -n $host && $host != *'['* && $host != *']'* ]]
+    fi
+}
+normalize_url() {
+    trim "$1"
+    local url=$REPLY host
+    if valid_url "$url"; then REPLY=$url; return 0; fi
+    if [[ -n $url && $url != *[[:space:]]* && ! $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+        host=${url%%[/?#]*}
+        host=${host##*@}
+        if [[ $host == *.* ]] && valid_url "https://$url"; then
+            REPLY="https://$url"; return 0
+        fi
+    fi
+    REPLY=
+    return 1
+}
+records() {
+    [[ -f $BOOKMARKS ]] || return 0
+    local line name= url=
+    while IFS= read -r line || [[ -n $line ]]; do
+        line=${line%$'\r'}
+        trim "$line"
+        if [[ -z $REPLY ]]; then
+            if [[ -n $name ]] && valid_url "$url"; then printf '%s\t%s\n' "$name" "$url"; fi
+            name= url=
+        elif [[ $line == Name:* ]]; then
+            trim "${line#Name:}"; name=$REPLY
+        elif [[ $line == URL:* ]]; then
+            trim "${line#URL:}"; url=$REPLY
+        fi
+    done < "$BOOKMARKS"
+    if [[ -n $name ]] && valid_url "$url"; then printf '%s\t%s\n' "$name" "$url"; fi
+}
+clean_name() { REPLY=$(printf '%s' "$1" | awk '{for(i=1;i<=NF;i++) {printf "%s%s", sep, $i; sep=" "}}'); }
+save() {
+    local name=$1 url=$2 old_name old_url fd
+    clean_name "$name"; name=$REPLY
+    [[ -n $name ]] && valid_url "$url" || fail 'Enter a name and use an HTTP or HTTPS page.'
+    exec {fd}> "$BOOKMARKS.lock" || fail 'Could not open the bookmarks file.'
+    flock -x "$fd" || fail 'Could not lock the bookmarks file.'
+    while IFS=$'\t' read -r old_name old_url; do
+        if [[ $name == "$old_name" && $url == "$old_url" ]]; then
+            exec {fd}>&-; return 0
+        fi
+    done < <(records)
+    printf '\nName: %s\nURL: %s\n\n' "$name" "$url" >> "$BOOKMARKS" || fail 'Could not save the bookmark.'
+    exec {fd}>&-
+}
+restore_capture() {
+    run "$XDOTOOL" key --clearmodifiers Escape >/dev/null 2>&1
+    if (( previous_ok )); then
+        printf '%s' "$previous" | timeout 3 xclip -selection clipboard -in >/dev/null 2>&1
+    fi
+}
+capture_page() {
+    local window klass suffix captured attempt poll
+    local previous= previous_ok=0
+    window=$(run "$XDOTOOL" getactivewindow) || fail 'Focus a Firefox page, press Super+Shift+B, and choose Add bookmark.'
+    [[ -n $window ]] || fail 'Could not identify the active window.'
+    klass=$(run "$XDOTOOL" getwindowclassname "$window") || fail 'Could not identify the active application.'
+    [[ ${klass,,} == *firefox* ]] || fail 'Focus a Firefox page, press Super+Shift+B, and choose Add bookmark.'
+    title=$(run "$XDOTOOL" getwindowname "$window")
+    for suffix in ' — Mozilla Firefox' ' - Mozilla Firefox' ' — Firefox'; do
+        [[ $title == *"$suffix" ]] && title=${title%"$suffix"}
+    done
+    # A sentinel preserves trailing newlines in the clipboard text.
+    if previous=$(timeout 2 xclip -selection clipboard -out && printf '\001'); then
+        previous=${previous%$'\001'}; previous_ok=1
+    fi
+    trap restore_capture EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    sleep 0.35
+    run "$XDOTOOL" key --clearmodifiers ctrl+l || fail 'Could not focus the Firefox address bar.'
+    sleep 0.25
+    run "$XDOTOOL" key --clearmodifiers ctrl+a || fail 'Could not select the Firefox page address.'
+    printf '' | timeout 3 xclip -selection clipboard -in >/dev/null 2>&1 || fail 'Could not clear the clipboard.'
+    url=
+    for ((attempt=0; attempt<3; attempt++)); do
+        run "$XDOTOOL" key --clearmodifiers ctrl+c || fail 'Could not copy the Firefox page address.'
+        for ((poll=0; poll<8; poll++)); do
+            sleep 0.1
+            if captured=$(timeout 2 xclip -selection clipboard -out 2>/dev/null) && normalize_url "$captured"; then
+                url=$REPLY; break
+            fi
+        done
+        [[ -n $url ]] && break
+    done
+    if [[ -z $url ]]; then
+        # Restore while the local clipboard variables are still in scope.
+        restore_capture; trap - EXIT INT TERM
+        fail 'Could not capture a web address. Focus the page, release the shortcut keys, and try again.'
+    fi
+    restore_capture
+    trap - EXIT INT TERM
+}
+quote_plus() {
+    local LC_ALL=C text=$1 char hex i
+    REPLY=
+    for ((i=0; i<${#text}; i++)); do
+        char=${text:i:1}
+        case $char in
+            [a-zA-Z0-9.~_-]) REPLY+=$char ;;
+            ' ') REPLY+=+ ;;
+            *) printf -v hex '%%%02X' "'$char"; REPLY+=$hex ;;
+        esac
+    done
+}
+# All writers use a separate lock because account updates replace the file.
+menu() { printf '%s\n' "$@" | timeout 3600 "$MENU" -p "$PROMPT"; }
+input() {
+    local answer
+    answer=$(PROMPT="$1" menu "${2:-}") || return 1
+    clean_name "$answer"; [[ -n $REPLY ]] || return 1
+}
+hostname() {
+    local host=${1#*://}
+    host=${host%%[/?#]*}; host=${host##*@}; host=${host%%:*}
+    host=${host,,}
+    REPLY=${host#www.}
+}
+# Account fields are kept in separate ordinary bookmark records.
+load_accounts() {
+    account_names=(); account_urls=(); account_emails=(); account_phones=()
+    local line key value n= u= a= e= p=
+    while IFS= read -r line || [[ -n $line ]]; do
+        trim "$line"; line=$REPLY
+        if [[ -z $line ]]; then
+            if [[ -z $a && ( -n $e || -n $p ) ]]; then a=Personal; fi
+            if [[ -n $a ]] && valid_url "$u"; then
+                account_names+=("$a"); account_urls+=("$u")
+                account_emails+=("$e"); account_phones+=("$p")
+            fi
+            n= u= a= e= p=
+        elif [[ $line == *:* ]]; then
+            key=${line%%:*}; trim "${line#*:}"; value=$REPLY
+            case $key in Name) n=$value;; URL) u=$value;; Account) a=$value;; Email) e=$value;; Phone) p=$value;; esac
+        fi
+    done < <(if [[ -f $BOOKMARKS ]]; then cat "$BOOKMARKS"; fi; printf '\n\n')
+}
+update_account() {
+    local site_name=$1 site_url=$2 old=$3 label=$4 email=$5 phone=$6 fd tmp i
+    exec {fd}> "$BOOKMARKS.lock" || return 1
+    flock -x "$fd" || return 1
+    load_accounts
+    for i in "${!account_names[@]}"; do
+        if [[ ${account_urls[i]} == "$site_url" && ${account_names[i]} == "$label" && $label != "$old" ]]; then
+            exec {fd}>&-; notify 'That account label already exists for this bookmark.'; return 1
+        fi
+    done
+    tmp=$(mktemp "${BOOKMARKS}.tmp.XXXXXX") || { exec {fd}>&-; return 1; }
+    # Strip only the selected account fields; retain its bookmark and any other fields.
+    if ! BM_URL="$site_url" BM_ACCOUNT="$old" awk '
+        BEGIN { RS=""; ORS="\n\n" }
+        { count=split($0,lines,"\n"); url=""; account=""; details=0
+          for(i=1;i<=count;i++) {
+            v=lines[i]; sub(/^[^:]*:[[:space:]]*/,"",v); sub(/[[:space:]]+$/,"",v)
+            if(lines[i] ~ /^URL:/) url=v
+            if(lines[i] ~ /^Account:/) account=v
+            if(lines[i] ~ /^(Email|Phone):/ && v!="") details=1
+          }
+          if(account=="" && details) account="Personal"
+          if(ENVIRON["BM_ACCOUNT"]!="" && url==ENVIRON["BM_URL"] && account==ENVIRON["BM_ACCOUNT"]) {
+            out=""; for(i=1;i<=count;i++) if(lines[i] !~ /^(Account|Email|Phone):/) out=out (out!="" ? "\n" : "") lines[i]
+            print out
+          } else print
+        }' "$BOOKMARKS" > "$tmp"; then
+        rm -f "$tmp"; exec {fd}>&-; return 1
+    fi
+    if [[ -n $label ]]; then
+        printf 'Name: %s\nURL: %s\nAccount: %s\n' "$site_name" "$site_url" "$label" >> "$tmp"
+        [[ -z $email ]] || printf 'Email: %s\n' "$email" >> "$tmp"
+        [[ -z $phone ]] || printf 'Phone: %s\n' "$phone" >> "$tmp"
+        printf '\n' >> "$tmp"
+    fi
+    chmod 600 "$tmp"
+    mv -- "$tmp" "$BOOKMARKS" || { rm -f "$tmp"; exec {fd}>&-; return 1; }
+    exec {fd}>&-
+}
+account_form() {
+    local site_name=$1 site_url=$2 old=${3:-} email=${4:-} phone=${5:-} label choice
+    input 'Account label (Escape cancels)' "$old" || return 0
+    label=$REPLY
+    # Selecting Skip/Remove leaves that field empty; Escape cancels everything.
+    choice=$(PROMPT='Email' menu 'Enter email' 'Skip / Remove email') || return 0
+    case $choice in
+        'Enter email') input 'Email address' "$email" || return 0; email=$REPLY ;;
+        'Skip / Remove email') email= ;;
+        *) return 0 ;;
+    esac
+    choice=$(PROMPT='Phone' menu 'Enter phone' 'Skip / Remove phone') || return 0
+    case $choice in
+        'Enter phone') input 'Phone number (include country code)' "$phone" || return 0; phone=$REPLY ;;
+        'Skip / Remove phone') phone= ;;
+        *) return 0 ;;
+    esac
+    [[ -n $email || -n $phone ]] || { notify 'Enter an email or phone number.'; return 0; }
+    update_account "$site_name" "$site_url" "$old" "$label" "$email" "$phone" && notify "Saved account: $label"
+}
+pick_bookmark() {
+    local name url label choice
+    local -A seen=()
+    local -a labels=() urls=() names=()
+    while IFS=$'\t' read -r name url; do
+        [[ -v 'seen[$url]' ]] && continue
+        seen["$url"]=1; labels+=("$name — $url"); urls+=("$url"); names+=("$name")
+    done < <(records)
+    ((${#labels[@]})) || { notify 'Save a bookmark first.'; return 1; }
+    choice=$(PROMPT='Choose website' menu "${labels[@]}") || return 1
+    local i
+    for i in "${!labels[@]}"; do
+        if [[ $choice == "${labels[i]}" ]]; then site_name=${names[i]}; site_url=${urls[i]}; return 0; fi
+    done
+    return 1
+}
+manage_accounts() {
+    local site_name site_url action choice i index=-1
+    local -a labels=() indices=()
+    pick_bookmark || return 0
+    action=$(PROMPT="$site_name: login details" menu 'Add account' 'Edit account' 'Remove account') || return 0
+    if [[ $action == 'Add account' ]]; then account_form "$site_name" "$site_url"; return; fi
+    [[ $action == 'Edit account' || $action == 'Remove account' ]] || return 0
+    load_accounts
+    for i in "${!account_names[@]}"; do
+        if [[ ${account_urls[i]} == "$site_url" ]]; then labels+=("${account_names[i]}"); indices+=("$i"); fi
+    done
+    ((${#labels[@]})) || { notify 'No accounts saved for this bookmark.'; return 0; }
+    choice=$(PROMPT='Choose account' menu "${labels[@]}") || return 0
+    for i in "${!labels[@]}"; do [[ $choice == "${labels[i]}" ]] && index=${indices[i]}; done
+    ((index>=0)) || return 0
+    if [[ $action == 'Edit account' ]]; then
+        account_form "$site_name" "$site_url" "${account_names[index]}" "${account_emails[index]}" "${account_phones[index]}"
+    else
+        choice=$(PROMPT="Remove ${account_names[index]}?" menu 'Cancel' 'Remove account') || return 0
+        [[ $choice == 'Remove account' ]] || return 0
+        update_account "$site_name" "$site_url" "${account_names[index]}" '' '' '' && notify 'Account removed.'
+    fi
+}
+copy_login() {
+    local url=$1 host saved_host i j choice
+    local -a labels=() values=()
+    local -A seen=()
+    hostname "$url"; host=$REPLY
+    load_accounts
+    for i in "${!account_names[@]}"; do
+        hostname "${account_urls[i]}"; saved_host=$REPLY
+        [[ $host == "$saved_host" || $host == *."$saved_host" ]] || continue
+        for j in email phone; do
+            local value label
+            if [[ $j == email ]]; then value=${account_emails[i]}; else value=${account_phones[i]}; fi
+            [[ -n $value ]] || continue
+            label="${account_names[i]} — $j ($saved_host)"
+            [[ -v 'seen[$label]' ]] && continue
+            seen["$label"]=1; labels+=("$label"); values+=("$value")
+        done
+    done
+    ((${#labels[@]})) || return 0
+    choice=$(PROMPT='Copy login detail' menu "${labels[@]}" 'Don’t copy') || return 1
+    [[ $choice != 'Don’t copy' ]] || return 0
+    i=-1
+    for j in "${!labels[@]}"; do [[ $choice == "${labels[j]}" ]] && i=$j; done
+    ((i>=0)) || return 1
+    if printf '%s' "${values[i]}" | timeout 3 xclip -selection clipboard -in >/dev/null 2>&1; then
+        notify "Copied: ${labels[i]}"
+    else
+        notify 'Could not copy login details.'; return 1
+    fi
+}
+open_url() {
+    local url=$1
+    valid_url "$url" || return 1
+    "$HOME/.local/bin/firefox-profiles" --open-url "$url"
+}
+
+add_bookmark() {
+    local window klass title= url= name
+    window=$(run "$XDOTOOL" getactivewindow 2>/dev/null) || window=
+    klass=$(run "$XDOTOOL" getwindowclassname "$window" 2>/dev/null) || klass=
+    if [[ ${klass,,} == *firefox* ]]; then
+        capture_page
+    else
+        input 'Bookmark URL' || return 0
+        normalize_url "$REPLY" || { notify 'Enter a valid HTTP or HTTPS address.'; return 0; }
+        url=$REPLY
+        hostname "$url"; title=$REPLY
+    fi
+    input 'Bookmark name' "$title" || return 0
+    name=$REPLY
+    save "$name" "$url"
+    notify "Saved: $name"
+}
+
+main() {
+    umask 077
+    local name url choice label
+    # Keep explicit account maintenance available without inserting extra menus.
+    if [[ ${1:-} == --accounts ]]; then manage_accounts; return; fi
+    if [[ ${1:-} == --save ]]; then add_bookmark; return; fi
+    while :; do
+        local -A entries=()
+        local -a labels=('＋ Add bookmark')
+        while IFS=$'\t' read -r name url; do
+            label="$name — $url"
+            [[ -v 'entries[$label]' ]] || labels+=("$label")
+            entries["$label"]=$url
+        done < <(records)
+        choice=$(PROMPT='Bookmarks' menu "${labels[@]}") || return 0
+        trim "$choice"; choice=$REPLY
+        [[ -n $choice ]] || return 0
+        if [[ $choice == '＋ Add bookmark' ]]; then
+            add_bookmark
+        elif [[ -v 'entries[$choice]' ]]; then
+            open_url "${entries[$choice]}"
+            return
+        else
+            notify 'Select a bookmark or Add bookmark.'
+        fi
+    done
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi

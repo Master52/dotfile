@@ -1,0 +1,27 @@
+{
+  "name": "Gruvbox Material",
+  "colors": {
+    "bg": "#282828",
+    "fg": "#d4be98",
+    "accent": "#d8a657",
+    "surface": "#32302f",
+    "muted": "#7c6f64",
+    "red": "#ea6962",
+    "green": "#a9b665",
+    "yellow": "#d8a657",
+    "blue": "#7daea3",
+    "cyan": "#89b482",
+    "subtext": "#bdae93",
+    "overlay": "#504945",
+    "crust": "#1d2021",
+    "mantle": "#242424"
+  },
+  "gtk": "Desktop-gruvbox",
+  "icons": "Desktop-gruvbox",
+  "cursor": "Bibata-Modern-Amber",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "DejaVu Sans Mono",
+  "opacity": 0.94,
+  "wallpaper": "wallpaper.png"
+}

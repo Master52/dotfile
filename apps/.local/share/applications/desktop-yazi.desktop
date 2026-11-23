@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Yazi Files
+Comment=Terminal file manager with icons and media previews
+Exec=/home/master/.local/bin/file-manager %f
+TryExec=/usr/bin/kitty
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileTools;FileManager;
+MimeType=inode/directory;

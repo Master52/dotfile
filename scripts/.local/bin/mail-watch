@@ -1,0 +1,152 @@
+#!/usr/bin/python3
+"""Poll configured aerc IMAPS inboxes without changing message read flags."""
+import configparser
+from email import policy
+from email.parser import BytesParser
+from email.utils import parseaddr
+import fcntl
+import hashlib
+import html
+import imaplib
+import json
+import os
+import resource
+from pathlib import Path
+import ssl
+import subprocess
+import sys
+import threading
+import time
+from urllib.parse import unquote, urlsplit
+
+BASE = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'mail-watch'
+
+
+class CredentialsLocked(Exception):
+    pass
+
+
+def credential(account):
+    if '_session_password' in account:
+        return account['_session_password']
+    command = account.get('source-cred-cmd', '')
+    if not command:
+        raise ValueError('source-cred-cmd is required')
+    # A background task must never display pinentry. After the user unlocks
+    # pass/aerc themselves, obtain the credential from the agent's cache.
+    env = dict(os.environ)
+    env['PASSWORD_STORE_GPG_OPTS'] = env.get('PASSWORD_STORE_GPG_OPTS', '') + ' --pinentry-mode error'
+    result = subprocess.run(command, shell=True, capture_output=True, text=True,
+                            env=env, timeout=30)
+    if result.returncode or not result.stdout.strip():
+        raise CredentialsLocked()
+    return result.stdout.splitlines()[0]
+
+
+def notify(account, sender, subject):
+    # Mail headers are untrusted text, never shell commands or notification markup.
+    clean = lambda value: ' '.join(str(value).split())[:300]
+    return subprocess.run([
+        'notify-send', '-a', 'Mail', '-i', 'mail-unread', '-t', '10000',
+        '--', 'New mail · ' + clean(account),
+        html.escape('From: ' + clean(sender)) + '\n' + html.escape(clean(subject)),
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0
+
+
+def check(name, account):
+    url = urlsplit(account['source'])
+    if url.scheme != 'imaps':
+        raise ValueError('Only password-authenticated IMAPS sources are supported')
+    password = credential(account)
+    statefile = BASE / (hashlib.sha256(name.encode()).hexdigest() + '.json')
+    try:
+        previous = json.loads(statefile.read_text())
+    except (FileNotFoundError, ValueError):
+        previous = None
+    with imaplib.IMAP4_SSL(url.hostname, url.port or 993,
+                          ssl_context=ssl.create_default_context(), timeout=20) as client:
+        try:
+            client.login(unquote(url.username or ''), password)
+        except imaplib.IMAP4.error:
+            account.pop('_session_password', None)
+            raise
+        # Keep successful credentials only in this running process, never disk.
+        account['_session_password'] = password
+        status, _ = client.select('INBOX', readonly=True)
+        if status != 'OK':
+            raise RuntimeError('Cannot select inbox')
+        validity = client.response('UIDVALIDITY')[1][0].decode()
+        status, data = client.uid('search', None, 'ALL')
+        if status != 'OK':
+            raise RuntimeError('Cannot list inbox')
+        uids = [int(uid) for uid in data[0].split()]
+        high = max(uids, default=0)
+        same = previous and previous.get('validity') == validity
+        watermark = previous['uid'] if same else high
+        for uid in (u for u in uids if u > watermark):
+            status, data = client.uid('fetch', str(uid),
+                '(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT)])')
+            if status != 'OK':
+                raise RuntimeError('Cannot fetch headers')
+            raw = b''.join(item[1] for item in data if isinstance(item, tuple))
+            message = BytesParser(policy=policy.default).parsebytes(raw)
+            sender = message.get('From', '(unknown sender)')
+            subject = message.get('Subject', '(no subject)')
+            address = parseaddr(account.get('from', ''))[1]
+            label = name if not address or address == name else f'{name} ({address})'
+            if not notify(label, sender, subject):
+                raise RuntimeError('Desktop notification unavailable')
+            watermark = uid
+            temp = statefile.with_suffix('.tmp')
+            temp.write_text(json.dumps({'validity': validity, 'uid': watermark}))
+            temp.replace(statefile)
+        temp = statefile.with_suffix('.tmp')
+        temp.write_text(json.dumps({'validity': validity, 'uid': max(high, watermark)}))
+        temp.replace(statefile)
+
+
+def worker(name, account):
+    failing = False
+    while True:
+        try:
+            check(name, account)
+            if failing:
+                print('Mail checking recovered for a configured account', flush=True)
+            failing = False
+        except CredentialsLocked:
+            if not failing:
+                print('Mail checking waiting for unlock: open aerc or unlock pass once.', flush=True)
+            failing = True
+        except Exception as error:
+            if not failing:
+                # Exception text can contain server/account details; log only its type.
+                print(f'Mail check failed ({type(error).__name__}); retrying in 60 seconds', flush=True)
+            failing = True
+        time.sleep(60)
+
+
+def main():
+    os.umask(0o077)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    BASE.mkdir(parents=True, exist_ok=True)
+    lock = (BASE / 'watch.lock').open('w')
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(Path.home() / '.config/aerc/accounts.conf')
+    if not config.sections():
+        print('No aerc accounts configured', file=sys.stderr)
+        return
+    threads = []
+    for name in config.sections():
+        thread = threading.Thread(target=worker, args=(name, dict(config[name])), daemon=True)
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Use the normal GPU selection without NVIDIA PRIME offloading.
+exec /usr/bin/kitty "$@"

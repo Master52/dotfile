@@ -1,0 +1,165 @@
+[bar/main]
+monitor = ${env:MONITOR:}
+width = 98%
+offset-x = 1%
+offset-y = 6
+radius = 10.0
+border-size = 1
+border-color = #40555f53
+height = 30
+background = #ed{{bg_hex}}
+foreground = {{fg}}
+font-0 = Inter:size=11;2
+font-1 = JetBrains Mono:size=9;2
+font-2 = Symbols Nerd Font Mono:size=9;3
+font-3 = Symbols Nerd Font Mono:size=11;2
+font-4 = Noto Sans Symbols 2:size=11;2
+padding = 2
+module-margin-left = 5px
+module-margin-right = 5px
+modules-left = launcher bspwm title
+modules-center =
+modules-right = cpu memory gpu temperature pulseaudio brightness battery date lock tray
+wm-restack = bspwm
+enable-ipc = true
+line-size = 2
+
+[bar/secondary]
+inherit = bar/main
+modules-right = cpu memory gpu temperature date lock
+
+[module/launcher]
+type = custom/text
+format = %{T4}%{T-}%{O8}Apps
+format-foreground = {{accent}}
+click-left = ~/.local/bin/app-launcher
+click-right = ~/.local/bin/desktop-control power
+
+[module/tray]
+type = internal/tray
+tray-size = 16
+tray-spacing = 8
+
+[module/bspwm]
+type = internal/bspwm
+pin-workspaces = true
+ws-icon-0 = 1;
+ws-icon-1 = 2;
+ws-icon-2 = 3;
+ws-icon-3 = 4;
+ws-icon-4 = 5;
+ws-icon-5 = 6;
+ws-icon-6 = 7;
+ws-icon-7 = 8;󰞮
+ws-icon-8 = 9;
+ws-icon-default = 
+label-focused = %name%  %{T3}%icon%%{T-}
+label-focused-foreground = {{accent}}
+label-focused-background = {{mantle}}
+label-focused-underline = {{accent}}
+label-focused-padding = 2
+label-occupied = %name%  %{T3}%icon%%{T-}
+label-occupied-padding = 2
+label-empty =
+label-empty-foreground = {{muted}}
+label-empty-padding = 0
+label-urgent = %name%  %{T3}%icon%%{T-}!
+label-urgent-padding = 2
+label-urgent-foreground = {{red}}
+
+[module/title]
+type = internal/xwindow
+format = <label>
+format-foreground = {{subtext}}
+format-prefix = %{T4}%{T-}%{O6}
+label = %title%
+label-maxlen = 32
+label-ellipsis = true
+label-empty = Desktop
+label-empty-foreground = {{muted}}
+
+[module/pulseaudio]
+type = internal/pulseaudio
+use-ui-max = false
+interval = 5
+format-volume = <label-volume>
+format-volume-padding = 0
+format-muted-padding = 0
+label-volume = %{T3}󰕾%{T-} %percentage%%
+label-volume-foreground = {{subtext}}
+label-muted = %{T3}󰖁%{T-} Muted
+label-muted-foreground = {{red}}
+click-right = pavucontrol
+
+[module/brightness]
+type = custom/script
+exec = ~/.local/bin/desktop-status brightness icons
+interval = 3
+format-padding = 0
+label-foreground = {{subtext}}
+scroll-up = ~/.local/bin/desktop-control bright-up
+scroll-down = ~/.local/bin/desktop-control bright-down
+
+[module/battery]
+type = custom/script
+exec = ~/.local/bin/desktop-status battery icons
+interval = 15
+format-padding = 0
+label-foreground = {{subtext}}
+
+[module/date]
+type = internal/date
+interval = 30
+date = %H:%M
+date-alt = %a %d %b  %H:%M
+label = %date%
+
+[module/lock]
+type = custom/text
+format = %{T3}󰌾%{T-}
+format-foreground = {{accent}}
+format-padding = 0
+click-left = ~/.local/bin/desktop-control lock
+click-right = ~/.local/bin/desktop-control power
+
+[module/cpu]
+type = internal/cpu
+interval = 2
+format = <label>
+format-prefix = %{T4}%{T-}%{O5}CPU%{O5}
+format-prefix-foreground = {{accent}}
+label = %percentage:2%%
+label-font = 1
+label-foreground = {{subtext}}
+
+[module/memory]
+type = internal/memory
+interval = 3
+format = <label>
+format-prefix = %{T4}󰍛%{T-}%{O5}RAM%{O5}
+format-prefix-foreground = {{accent}}
+label = %percentage_used:2%%
+label-font = 1
+label-foreground = {{subtext}}
+
+[module/gpu]
+type = custom/script
+exec = ~/.local/libexec/polybar-gpu
+interval = 5
+format = <label>
+format-prefix = %{T4}󰢮%{T-}%{O5}
+format-prefix-foreground = {{accent}}
+label = %output%
+label-font = 1
+label-foreground = {{subtext}}
+
+[module/temperature]
+type = custom/script
+exec = ~/.local/libexec/polybar-temperature
+interval = 3
+format = <label>
+format-prefix = %{T3}%{T-}%{O5}
+format-prefix-foreground = {{accent}}
+label = %output%
+label-font = 1
+label-foreground = {{subtext}}

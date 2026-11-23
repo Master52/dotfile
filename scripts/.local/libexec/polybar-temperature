@@ -1,0 +1,29 @@
+#!/bin/bash
+# Print CPU package temperature; fall back to the hottest core.
+package=-1 core=-1
+for device in /sys/class/hwmon/hwmon*; do
+    [[ -r $device/name ]] || continue
+    read -r name < "$device/name" || continue
+    [[ $name == coretemp ]] || continue
+    for sensor in "$device"/temp*_input; do
+        [[ -r $sensor ]] || continue
+        read -r value < "$sensor" || continue
+        [[ $value =~ ^[0-9]+$ ]] || continue
+        value=$((10#$value))
+        (( value <= 150000 )) || continue
+        label=
+        [[ ! -r ${sensor%_input}_label ]] || read -r label < "${sensor%_input}_label"
+        if [[ $label == Package* ]]; then
+            (( value <= package )) || package=$value
+        else
+            (( value <= core )) || core=$value
+        fi
+    done
+done
+(( package < 0 )) && package=$core
+if (( package >= 0 )); then
+    printf -v degrees '%d.%03d' "$((package / 1000))" "$((package % 1000))"
+    LC_NUMERIC=C printf 'CPU %.0f°C\n' "$degrees"
+else
+    printf 'CPU N/A\n'
+fi

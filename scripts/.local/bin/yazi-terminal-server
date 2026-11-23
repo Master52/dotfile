@@ -1,0 +1,32 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+# Keep the image-capable terminal ready for fast file-manager launches.
+command -v kitty >/dev/null || exit 0
+runtime="${XDG_RUNTIME_DIR:-$HOME/.cache}/desktop-yazi"
+umask 077
+mkdir -p "$runtime"
+chmod 700 "$runtime"
+# A healthy server needs no startup lock. Older servers may still hold the
+# inherited lock descriptor until they exit.
+if [ -S "$runtime/kitty.sock" ] && kitten @ --to "unix:$runtime/kitty.sock" ls >/dev/null 2>&1; then
+    exit 0
+fi
+(
+    flock -w 5 9 || exit 1
+    if [ -S "$runtime/kitty.sock" ]; then
+        if kitten @ --to "unix:$runtime/kitty.sock" ls >/dev/null 2>&1; then
+            exit 0
+        fi
+    fi
+    kitty --detach --single-instance --instance-group desktop-yazi \
+        --start-as hidden --listen-on "unix:$runtime/kitty.sock" \
+        --config "$HOME/.config/kitty/yazi.conf" \
+        -o allow_remote_control=socket-only 9>&-
+    attempts=0
+    while [ ! -S "$runtime/kitty.sock" ]; do
+        attempts=$((attempts + 1))
+        [ "$attempts" -lt 60 ] || exit 1
+        sleep .05
+    done
+) 9>"$runtime/start.lock"

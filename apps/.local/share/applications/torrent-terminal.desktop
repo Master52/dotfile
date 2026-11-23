@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Torrent Downloads
+GenericName=Terminal BitTorrent Client
+Comment=Manage Transmission downloads in tremc
+Exec=/home/master/.local/bin/torrent-open %U
+TryExec=/usr/bin/tremc
+Icon=folder-download
+Terminal=false
+StartupWMClass=Torrents
+Categories=Network;FileTransfer;P2P;
+MimeType=application/x-bittorrent;x-scheme-handler/magnet;

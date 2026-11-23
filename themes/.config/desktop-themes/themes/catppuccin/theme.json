@@ -1,0 +1,27 @@
+{
+  "name": "Catppuccin Mocha",
+  "colors": {
+    "bg": "#1e1e2e",
+    "fg": "#cdd6f4",
+    "accent": "#cba6f7",
+    "surface": "#313244",
+    "muted": "#585b70",
+    "red": "#f38ba8",
+    "green": "#a6e3a1",
+    "yellow": "#f9e2af",
+    "blue": "#89b4fa",
+    "cyan": "#94e2d5",
+    "subtext": "#a6adc8",
+    "overlay": "#45475a",
+    "crust": "#11111b",
+    "mantle": "#181825"
+  },
+  "gtk": "Desktop-catppuccin",
+  "icons": "Desktop-catppuccin",
+  "cursor": "Bibata-Modern-Ice",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "DejaVu Sans Mono",
+  "opacity": 0.94,
+  "wallpaper": "wallpaper.jpg"
+}

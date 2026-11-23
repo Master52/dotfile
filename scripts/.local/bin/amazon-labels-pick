@@ -1,0 +1,58 @@
+#!/bin/bash
+# Choose PDFs with Yazi, then delegate label processing to amazon-labels.
+set -u
+umask 077
+
+if [[ ${1:-} != --terminal ]]; then
+    exec "$HOME/.local/bin/kitty" --class AmazonLabels \
+        --title 'Amazon labels: Space = select | Enter = process | q = cancel' \
+        --config "$HOME/.config/kitty/yazi.conf" --directory "$HOME/Downloads" \
+        "$HOME/.local/bin/amazon-labels-pick" --terminal
+fi
+
+notify() {
+    notify-send -a 'Amazon Labels' -i application-pdf -- "$1" "$2" 2>/dev/null || :
+}
+
+fail() {
+    printf '\n%s\n' "$1" >&2
+    notify 'Amazon labels: failed' "$1"
+    read -r -p 'Press Enter to close… ' _ || :
+    exit 1
+}
+
+runtime=${XDG_RUNTIME_DIR:-$HOME/.cache}
+mkdir -p "$runtime" || exit 1
+exec 9>"$runtime/amazon-labels-picker.lock"
+if ! flock -n 9; then
+    notify 'Amazon labels' 'A label picker or processing job is already open.'
+    exit 0
+fi
+
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/amazon-labels-pick.XXXXXXXX") || exit 1
+cleanup() {
+    rm -f -- "$workdir/selected" "$workdir/process.log"
+    rmdir -- "$workdir" 2>/dev/null || :
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+cd "$HOME/Downloads" || fail 'Downloads folder is unavailable.'
+printf 'Select PDF(s) with Space, then Enter to process. q cancels.\n'
+yazi --chooser-file "$workdir/selected" "$HOME/Downloads" || exit 0
+[[ -s $workdir/selected ]] || exit 0
+mapfile -t files < "$workdir/selected"
+for file in "${files[@]}"; do
+    [[ -f $file && ${file,,} == *.pdf ]] || fail 'Select only existing PDF files. No files were processed.'
+done
+
+notify 'Amazon labels' 'Processing selected PDFs…'
+printf '\nProcessing %s selected PDF(s)…\n\n' "${#files[@]}"
+if ! "$HOME/.local/bin/amazon-labels" -o "$HOME/Downloads/amazon-labels.pdf" -- "${files[@]}" >"$workdir/process.log" 2>&1; then
+    cat "$workdir/process.log"
+    fail 'Could not process these PDFs. See the terminal for details; the previous final PDF is unchanged.'
+fi
+cat "$workdir/process.log"
+notify 'Amazon labels ready' 'Saved to Downloads/amazon-labels.pdf'
+xdg-open "$HOME/Downloads/amazon-labels.pdf" 9>&- </dev/null >/dev/null 2>&1 &

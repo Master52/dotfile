@@ -1,0 +1,37 @@
+@import url("desktop-theme.css");
+
+/* Apply the desktop palette to Firefox's start page. */
+@-moz-document url("about:home"), url("about:newtab") {
+  :root {
+    color-scheme: var(--desktop-mode) !important;
+    --newtab-background-color: var(--desktop-bg) !important;
+    --newtab-background-color-secondary: var(--desktop-surface) !important;
+    --newtab-text-primary-color: var(--desktop-fg) !important;
+    --newtab-text-secondary-color: var(--desktop-muted) !important;
+    --newtab-primary-action-background: var(--desktop-accent) !important;
+    --newtab-element-hover-color: var(--desktop-mantle) !important;
+    --newtab-element-secondary-color: var(--desktop-surface) !important;
+    --newtab-border-color: var(--desktop-overlay) !important;
+    --newtab-textbox-focus-color: var(--desktop-accent) !important;
+  }
+
+  body {
+    background: var(--desktop-bg) !important;
+    color: var(--desktop-fg) !important;
+    font-family: var(--desktop-font) !important;
+  }
+
+  .search-wrapper .search-handoff-button,
+  .search-wrapper input {
+    background-color: var(--desktop-surface) !important;
+    color: var(--desktop-fg) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 6px color-mix(in srgb, var(--desktop-bg) 35%, transparent) !important;
+  }
+
+  .top-site-outer .tile {
+    border-radius: 12px !important;
+    background-color: var(--desktop-surface) !important;
+    box-shadow: none !important;
+  }
+}

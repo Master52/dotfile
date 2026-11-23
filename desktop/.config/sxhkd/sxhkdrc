@@ -1,0 +1,158 @@
+# Alt is the desktop modifier
+# Choose files in Yazi and open the printer dialog.
+ctrl + shift + p
+    ~/.local/bin/print-files
+
+alt + Tab
+    bspc desktop -f last
+
+alt + Return
+    ~/.local/bin/kitty
+super + space
+    ~/.local/bin/app-launcher
+super + f
+    ~/.local/bin/firefox-profiles --private
+super + shift + f
+    ~/.local/bin/firefox-profiles
+super + y
+    ~/.local/bin/file-manager
+alt + {h,j,k,l}
+    bspc node -f {west,south,north,east}
+alt + ctrl + shift + {h,j,k,l}
+    bspc node -s {west,south,north,east}
+alt + shift + {h,j,k,l}
+    bspc node -z {left -30 0,bottom 0 30,top 0 -30,right 30 0}
+alt + {1-9}
+    bspc desktop -f '{1-9}'
+alt + shift + {1-9}
+    bspc node -d '{1-9}' --follow
+alt + q
+  bspc node -{c,k}
+alt + f
+    bspc node -t '~fullscreen'
+
+#Floating 
+alt + shift + space
+    bspc node -t '~floating'; 
+
+#PIP MOCE
+alt + p
+    bspc node -t '~floating'; \
+    bspc node -g sticky; \
+    bspc node -l above rectangle=480x270+1420+790
+
+alt + space
+    bspc node -f next.local
+alt + m
+    bspc desktop -l next
+alt + b
+    bspc node @/ -B
+alt + shift + r
+    ~/.local/bin/bspwm-reload-menu
+
+# Desktop controls
+super + shift + q
+    ~/.local/bin/desktop-control power
+alt + F1
+    ~/.local/bin/desktop-control help
+Print
+    ~/.local/bin/desktop-control screenshot
+alt + ctrl + p
+    ~/.local/bin/desktop-control screenshot
+shift + Print
+    ~/.local/bin/desktop-control region
+XF86AudioRaiseVolume
+    ~/.local/bin/desktop-control volume-up
+XF86AudioLowerVolume
+    ~/.local/bin/desktop-control volume-down
+XF86AudioMute
+    ~/.local/bin/desktop-control mute
+XF86AudioMicMute
+    ~/.local/bin/desktop-control mic
+XF86MonBrightnessUp
+    ~/.local/bin/desktop-control bright-up
+XF86MonBrightnessDown
+    ~/.local/bin/desktop-control bright-down
+alt + n
+    dunstctl close
+alt + shift + n
+    dunstctl history-pop
+alt + ctrl + n
+    dunstctl set-paused toggle
+alt + bracketleft
+    bspc monitor -f prev
+alt + bracketright
+    bspc monitor -f next
+alt + shift + bracketleft
+    bspc node -m prev --follow
+alt + shift + bracketright
+    bspc node -m next --follow
+alt + ctrl + p
+    ~/.local/bin/monitor-layout --refresh
+
+# RustDesk
+super + r
+    ~/.local/bin/rustdesk-1.5.0-x86_64.AppImage
+
+# Mail: open aerc; inbox checking continues after the window closes.
+super +  m
+    ~/.local/bin/mail-open
+
+# Choose a complete desktop theme
+super + ctrl + t
+    ~/.local/bin/desktop-theme
+
+# Clipboard history and Unicode emoji
+super + shift + c 
+    ~/.local/bin/clipboard-menu
+super + shift + e
+    ~/.local/bin/emoji-picker
+
+# Mount, open and safely remove data drives
+super + shift + d
+    ~/.local/bin/drive-menu
+
+# Visual sxiv image tools
+super + shift + w
+    ~/.local/bin/wallpaper-picker
+super + shift + s
+    ~/.local/bin/screenshot-browser
+
+
+# Choose an encrypted account and copy its password
+super + shift + p
+    ~/.local/bin/password-menu
+
+# Firefox bookmarks in ~/recutils
+super + shift + b
+    ~/.local/bin/browser-menu
+
+# WhatsApp in Kitty, with inline photo viewing
+super + w
+    ~/.local/bin/nchat-open
+
+# Choose a tmux session or start Codex in a selected folder.
+super + shift + x
+    ~/.local/bin/codex-tmux
+
+# Select screen text and copy it with OCR.
+super + shift + o
+    ~/.local/bin/screen-ocr
+
+# Open Steam with NVIDIA PRIME on desktop 7.
+super + s
+    ~/.local/bin/steam-desktop
+
+# Pick a camera view; reconnect dropped streams automatically.
+super + h
+    ~/.local/bin/camera-viewer
+
+# Terminal torrents and add/pause/resume controls.
+super + t
+    ~/.local/bin/torrent-open
+super + shift + t
+    ~/.local/bin/torrent-menu
+
+# Select Amazon PDFs from Downloads and prepare one final label sheet PDF.
+super + shift + l
+    ~/.local/bin/amazon-labels-pick

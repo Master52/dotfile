@@ -1,0 +1,4 @@
+#!/bin/sh
+# The local Steam launcher already enables NVIDIA PRIME offload.
+bspc desktop -f 7 || exit 1
+exec "$HOME/.local/bin/steam"

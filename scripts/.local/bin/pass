@@ -1,0 +1,40 @@
+#!/usr/bin/python3
+"""Run system pass, suppressing clipboard history for timed password copies."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def main(args):
+    copies = any(a in ('-c', '--clip') or a.startswith('--clip=')
+                 or (a.startswith('-c') and a[2:].isdigit()) for a in args)
+    if not copies:
+        os.execv('/usr/bin/pass', ['pass', *args])
+    os.umask(0o077)
+    directory = Path.home() / '.cache/password-clipboard-guard'
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    directory.chmod(0o700)
+    try:
+        duration = max(0, int(os.environ.get('PASSWORD_STORE_CLIP_TIME', '45')))
+    except ValueError:
+        duration = 45
+    fd, name = tempfile.mkstemp(suffix='.guard', dir=directory)
+    guard = Path(name)
+    # While pass is running, the live PID protects even a long unlock dialog.
+    with os.fdopen(fd, 'w') as stream:
+        stream.write(f'{os.getpid()} {int(time.time()) + duration + 5}\n')
+    try:
+        return subprocess.run(['/usr/bin/pass', *args]).returncode
+    finally:
+        # pass clears/restores the clipboard asynchronously. Keep recording
+        # disabled until its timeout has elapsed, including a short grace period.
+        temporary = guard.with_suffix('.tmp')
+        temporary.write_text(f'0 {int(time.time()) + duration + 5}\n')
+        temporary.replace(guard)
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

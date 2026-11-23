@@ -1,0 +1,25 @@
+#!/bin/sh
+# Prefer local desktop launchers.
+export PATH="$HOME/.local/bin:$PATH"
+case "$1" in
+ volume-up) wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && "$HOME/.local/bin/desktop-notify" volume ;;
+ volume-down) wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && "$HOME/.local/bin/desktop-notify" volume ;;
+ mute) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && "$HOME/.local/bin/desktop-notify" volume ;;
+ mic) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && "$HOME/.local/bin/desktop-notify" mic ;;
+ bright-up) "$HOME/.local/bin/desktop-brightness" up ;;
+ bright-down) "$HOME/.local/bin/desktop-brightness" down ;;
+ lock) exec betterlockscreen -l dimblur ;;
+ screenshot) exec "$HOME/.local/bin/screenshot-tool" ;;
+ region) exec "$HOME/.local/bin/screenshot-tool" area ;;
+ network) exec kitty -e nmtui ;;
+ power)
+  choice=$(printf '%s\n' Lock Shutdown Reboot Suspend Hibernate | "$HOME/.local/bin/desktop-menu" -l 5 -p Power) || exit 0
+  case "$choice" in
+   Lock) exec "$0" lock ;;
+   Shutdown) exec loginctl poweroff ;;
+   Reboot) exec loginctl reboot ;;
+   Suspend)  loginctl suspend ;;
+   Hibernate) loginctl hibernate ;;
+  esac ;;
+ help) exec kitty --title 'Shortcut guide — Space / to fuzzy search' -e nvim "$HOME/.config/bspwm/SHORTCUTS.md" ;;
+esac

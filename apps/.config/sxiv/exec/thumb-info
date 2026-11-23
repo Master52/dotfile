@@ -1,0 +1,6 @@
+#!/bin/sh
+case "$DESKTOP_SXIV_MODE" in
+ wallpaper) printf 'Wallpapers | Ctrl+x w: apply | Ctrl+x a: actions' ;;
+ screenshots) printf 'Screenshots | Ctrl+x y: image | Ctrl+x p: path | Ctrl+x a: actions' ;;
+ *) printf 'Ctrl+x a: actions | Ctrl+x p: copy path' ;;
+esac

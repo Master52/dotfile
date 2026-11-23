@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+"""Choose files in Yazi, then open the CUPS print dialog."""
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+    home = Path.home()
+    start = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else home
+    with tempfile.TemporaryDirectory(prefix='print-files-') as temporary:
+        selection = Path(temporary) / 'selected'
+        result = subprocess.run([
+            '/usr/bin/kitty', '--class', 'print-picker',
+            '--title', 'Print files — Space: select · Enter: print · q: cancel',
+            '--config', str(home / '.config/kitty/yazi.conf'),
+            '/usr/bin/yazi', '--chooser-file', str(selection), str(start),
+        ])
+        if result.returncode or not selection.exists():
+            return
+        files = list(dict.fromkeys(
+            name for name in selection.read_text().splitlines()
+            if Path(name).is_file()
+        ))
+        if files:
+            subprocess.run(['gtklp', '-i', *files], check=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, subprocess.SubprocessError) as error:
+        subprocess.run(['notify-send', 'Print files', str(error)], check=False)
+        sys.exit(1)

@@ -1,0 +1,31 @@
+[app]
+overall = { fg = "{{fg}}", bg = "{{bg}}" }
+
+[mgr]
+cwd = { fg = "{{cyan}}" }
+border_style = { fg = "{{muted}}" }
+find_keyword = { fg = "{{yellow}}", bold = true }
+find_position = { fg = "{{accent}}", bold = true }
+marker_copied = { fg = "{{green}}", bg = "{{green}}" }
+marker_cut = { fg = "{{red}}", bg = "{{red}}" }
+marker_selected = { fg = "{{accent}}", bg = "{{accent}}" }
+
+[tabs]
+active = { fg = "#111113", bg = "{{accent}}", bold = true }
+inactive = { fg = "{{subtext}}", bg = "{{surface}}" }
+
+[mode]
+normal_main = { fg = "#111113", bg = "{{accent}}", bold = true }
+normal_alt = { fg = "{{accent}}", bg = "{{surface}}" }
+select_main = { fg = "#111113", bg = "{{green}}", bold = true }
+select_alt = { fg = "{{green}}", bg = "{{surface}}" }
+unset_main = { fg = "#111113", bg = "{{red}}", bold = true }
+unset_alt = { fg = "{{red}}", bg = "{{surface}}" }
+
+[status]
+overall = { fg = "{{fg}}", bg = "{{surface}}" }
+
+[indicator]
+parent = { fg = "{{fg}}", bg = "{{surface}}" }
+current = { fg = "#111113", bg = "{{accent}}", bold = true }
+preview = { fg = "{{fg}}", bg = "{{surface}}" }

@@ -1,0 +1,9 @@
+#!/bin/sh
+choice=$(printf '%s\n' 'Reload bspwm' 'Reload shortcuts' 'Reload Polybar' 'Reload compositor' 'Reload notifications' | "$HOME/.local/bin/desktop-menu" -p Reload) || exit 0
+case "$choice" in
+ 'Reload bspwm') bspc wm -r ;;
+ 'Reload shortcuts') pkill -USR1 -u "$(id -u)" -x sxhkd ;;
+ 'Reload Polybar') "$HOME/.local/bin/polybar-launch" ;;
+ 'Reload compositor') pkill -u "$(id -u)" -x picom; "$HOME/.local/bin/bspwm-compositor" & ;;
+ 'Reload notifications') dunstctl reload ;;
+esac

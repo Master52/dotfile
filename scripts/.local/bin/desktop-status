@@ -1,0 +1,35 @@
+#!/bin/bash
+# Small text indicators consumed by Polybar.
+. "$HOME/.local/libexec/desktop-backlight.sh"
+case ${1:-} in
+    battery)
+        for device in /sys/class/power_supply/BAT*; do
+            [[ -r "$device/capacity" && -r "$device/status" ]] || continue
+            read -r capacity < "$device/capacity"
+            read -r status < "$device/status"
+            label=BAT; [[ "$status" != Charging ]] || label=AC
+            if [[ ${2:-} == icons ]]; then
+                label='󰁹'
+                (( capacity > 70 )) || label='󰁾'
+                (( capacity > 30 )) || label='󰁻'
+                (( capacity > 10 )) || label='󰂎'
+                [[ "$status" != Charging && "$status" != Full ]] || label='󰚥'
+                label="%{T3}${label}%{T-}"
+            fi
+            printf '%s %s%%\n' "$label" "$capacity"
+            break
+        done ;;
+    brightness)
+        if read_backlight; then
+            label=BRT
+            [[ ${2:-} != icons ]] || label='%{T3}󰃠%{T-}'
+            printf '%s %s%%\n' "$label" "$BACKLIGHT_PERCENT"
+        fi ;;
+    network)
+        if rows=$(timeout 2 nmcli -t -f TYPE,STATE device 2>/dev/null); then
+            if grep -qx 'wifi:connected' <<< "$rows"; then echo Wi-Fi
+            elif grep -qx 'ethernet:connected' <<< "$rows"; then echo LAN
+            else echo Offline; fi
+        else echo 'NET ?'; fi ;;
+    *) printf 'Usage: desktop-status {battery|brightness|network}\n' >&2; exit 2 ;;
+esac

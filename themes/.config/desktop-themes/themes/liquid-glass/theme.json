@@ -1,0 +1,31 @@
+{
+  "name": "Liquid Glass",
+  "colors": {
+    "bg": "#101c30",
+    "fg": "#eef7ff",
+    "accent": "#9bbfdf",
+    "surface": "#1e3450",
+    "muted": "#819bb5",
+    "red": "#ff8eaa",
+    "green": "#92e6c1",
+    "yellow": "#ffe1a1",
+    "blue": "#89baff",
+    "cyan": "#9af0ee",
+    "subtext": "#bfd4e8",
+    "overlay": "#54718d",
+    "crust": "#080f1e",
+    "mantle": "#16263c"
+  },
+  "gtk": "Desktop-liquid-glass",
+  "icons": "Desktop-liquid-glass",
+  "cursor": "Bibata-Modern-Ice",
+  "cursor_size": 24,
+  "ui_font": "Inter",
+  "mono_font": "JetBrains Mono",
+  "opacity": 0.97,
+  "wallpaper": "misty-mountains.png",
+  "mode": "dark",
+  "window_gap": 14,
+  "border_width": 1,
+  "ui_font_size": 11
+}

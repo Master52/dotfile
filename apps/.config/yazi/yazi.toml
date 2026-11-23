@@ -1,0 +1,38 @@
+[mgr]
+ratio = [1, 3, 4]
+sort_by = "natural"
+sort_dir_first = true
+show_hidden = false
+show_symlink = true
+linemode = "size"
+mouse_events = ["click", "scroll", "drag"]
+
+[preview]
+max_width = 1600
+max_height = 1200
+image_quality = 85
+image_delay = 50
+
+[opener] 
+choose = [{ run = "$HOME/.local/bin/choose-file-app %s", orphan = true, desc = "Choose application…", for = "linux" }]
+pdf = [{ run = "zathura %s", orphan = true, desc = "Zathura", for = "linux" }]
+edit = [{ run = "nvim %s", block = true, desc = "Vim", for = "linux" }]
+open = [{ run = "gio open %s1", orphan = true, desc = "System default", for = "linux" }]
+image = [{ run = "sxiv %s", orphan = true, desc = "sxiv", for = "linux" }]
+animation = [{ run = "sxiv -a %s", orphan = true, desc = "sxiv (animated)", for = "linux" }]
+play = [{ run = "mpv %s", orphan = true, desc = "Play media", for = "linux" }]
+office = [{ run = "libreoffice %s", orphan = true, desc = "Libreoffice", for = "linux"}]
+
+[open]
+prepend_rules = [
+    { mime = "application/pdf", use = ["pdf", "open", "choose"] },
+    { mime = "image/gif", use = ["animation", "open", "choose"] },
+    { mime = "image/*", use = ["image", "open", "choose"] },
+    { mime = "{audio,video}/*", use = ["play", "open", "choose"] },
+    { mime = "application/vnd.oasis.opendocument.*", use = ["office", "open", "choose"] },
+    { url = "*.{csv,xls,xlsx,doc,docx,ppt,pptx}", use = ["office", "open", "choose"] },
+    { mime = "text/*", use = ["edit", "open", "choose"] },
+    { mime = "application/{json,javascript,xml}", use = ["edit", "open", "choose"] },
+    { url = "*", use = ["open", "choose"] },
+
+]

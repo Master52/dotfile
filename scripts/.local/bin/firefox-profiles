@@ -1,0 +1,180 @@
+#!/usr/bin/python3
+"""Pick Firefox profiles or route bookmarked domains to a saved profile."""
+import argparse
+import configparser
+from contextlib import closing
+from dataclasses import dataclass
+import json
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+
+@dataclass(frozen=True)
+class Profile:
+    name: str
+    path: Path
+
+
+def vault_settings(home):
+    path = home / '.config/firefox-launcher/vault.json'
+    if not path.exists():
+        return None
+    settings = json.loads(path.read_text())
+    if not isinstance(settings.get('profile_path'), str):
+        raise ValueError('Encrypted profile configuration has no profile path.')
+    return settings
+
+
+def profiles(home):
+    root = home / '.mozilla/firefox'
+    found = {}
+    vault = vault_settings(home)
+    protected_path = Path(vault['profile_path']).absolute() if vault else None
+    protected_target = Path(vault['mount_dir']) / 'profile' if vault and vault.get('mount_dir') else None
+
+    def profile_path(path):
+        # Keep the registered path even when its encrypted target is locked.
+        if path.absolute() in (protected_path, protected_target):
+            return protected_path, True
+        try:
+            resolved = path.resolve()
+            return resolved, resolved.is_dir()
+        except PermissionError:
+            return path, False
+    # Modern profile names are stored here; profiles.ini may contain an old alias.
+    for database in sorted((root / 'Profile Groups').glob('*.sqlite')):
+        try:
+            with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=2)) as db:
+                rows = db.execute('SELECT name, path FROM Profiles').fetchall()
+            for name, location in rows:
+                path = Path(location).expanduser()
+                if not path.is_absolute():
+                    path = root / path
+                path, available = profile_path(path)
+                if vault and path == protected_path:
+                    name = vault.get('name', name)
+                if name and '\n' not in name and available:
+                    found[path] = Profile(name, path)
+        except sqlite3.Error as error:
+            raise ValueError(f'Could not read Firefox profile database {database.name}: {error}') from error
+    ini = configparser.ConfigParser(interpolation=None)
+    ini.read(root / 'profiles.ini')
+    for section in ini.sections():
+        if not section.startswith('Profile'):
+            continue
+        name, location = ini.get(section, 'Name', fallback=''), ini.get(section, 'Path', fallback='')
+        if not name or not location or '\n' in name:
+            continue
+        path = Path(location).expanduser()
+        if ini.getboolean(section, 'IsRelative', fallback=True):
+            path = root / path
+        path, available = profile_path(path)
+        if available:
+            found.setdefault(path, Profile(name, path))
+    return sorted(found.values(), key=lambda profile: (profile.name.casefold(), str(profile.path)))
+
+
+def profile_for_domain(url, rules):
+    parsed = urlsplit(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+        raise ValueError('Expected an HTTP or HTTPS address.')
+    host = parsed.hostname.rstrip('.').encode('idna').decode().lower()
+    matches = []
+    for domain, name in rules.items():
+        if not isinstance(domain, str) or not isinstance(name, str) or not name.strip():
+            raise ValueError('Website rules must map domains to nonempty profile names.')
+        domain = domain.strip().lower().rstrip('.')
+        if not domain or any(char in domain for char in '/:@*') or any(char.isspace() for char in domain):
+            raise ValueError(f'Use a domain without https:// or a path: {domain!r}')
+        domain = domain.encode('idna').decode()
+        if host == domain or host.endswith('.' + domain):
+            matches.append((len(domain), name))
+    return max(matches, default=(0, None))[1]
+
+
+def open_profile(profile, url=None, private=False):
+    # Explicit paths also work for modern profiles absent from profiles.ini.
+    # Keep remote commands enabled so an already-running profile can be reused.
+    command = ['firefox', '--profile', str(profile.path)]
+    if private:
+        command += ['--private-window', url or 'about:privatebrowsing']
+    else:
+        command += ['--new-tab', url] if url else ['--new-window', 'about:newtab']
+    home = Path.home()
+    vault = vault_settings(home)
+    if vault and profile.path.absolute() == Path(vault['profile_path']).absolute():
+        command = [str(home / '.local/bin/firefox-vault'), 'open']
+        if url:
+            command += ['--url', url]
+        if private:
+            command.append('--private')
+    subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--list', action='store_true', help='List available profiles without opening Firefox')
+    mode.add_argument('--route-url', metavar='URL', help='Open a matching website rule; exit 3 if unmatched')
+    mode.add_argument('--open-url', metavar='URL', help='Apply website rules, otherwise open privately in the default profile')
+    mode.add_argument('--private', action='store_true', help='Open a private window in the default profile')
+    args = parser.parse_args(argv)
+    home = Path.home()
+    defaults_path = home / '.config/firefox-launcher/defaults.json'
+    defaults = json.loads(defaults_path.read_text()) if defaults_path.exists() else {'profile': 'Temp'}
+    if not isinstance(defaults, dict) or not isinstance(defaults.get('profile'), str) or not defaults['profile']:
+        raise ValueError('defaults.json must contain a nonempty profile name.')
+    default_name = defaults['profile']
+    url = args.open_url or args.route_url
+    if url or args.private:
+        name = None
+        if url:
+            rules_path = home / '.config/firefox-launcher/sites.json'
+            rules = json.loads(rules_path.read_text()) if rules_path.exists() else {}
+            if not isinstance(rules, dict):
+                raise ValueError('Website rules must be a JSON object mapping domains to profile names.')
+            name = profile_for_domain(url, rules)
+        if name is None and args.route_url:
+            return 3
+        private = name is None or name == default_name
+        name = name or default_name
+        matches = [profile for profile in profiles(home) if profile.name == name]
+        if len(matches) != 1:
+            raise ValueError(f'Expected one Firefox profile named {name!r}; found {len(matches)}. Check sites.json.')
+        open_profile(matches[0], url, private=private)
+        return 0
+    available = profiles(home)
+    if not available:
+        raise ValueError('No Firefox profiles found.')
+    labels = {}
+    for profile in available:
+        duplicate = sum(other.name == profile.name for other in available) > 1
+        label = f'{profile.name} — {profile.path.name}' if duplicate else profile.name
+        labels[label] = profile
+    if args.list:
+        print('\n'.join(labels))
+        return 0
+    selection = subprocess.run([str(home / '.local/bin/desktop-menu'), '-p', 'Firefox profile'],
+                               input='\n'.join(labels) + '\n', text=True, capture_output=True,
+                               timeout=3600)
+    if selection.returncode == 0 and selection.stdout.rstrip('\n') in labels:
+        profile = labels[selection.stdout.rstrip('\n')]
+        open_profile(profile, private=profile.name == default_name)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, configparser.Error, subprocess.TimeoutExpired) as error:
+        message = str(error)
+        print(f'Firefox profiles: {message}', file=sys.stderr)
+        try:
+            subprocess.run(['notify-send', 'Firefox profiles', message], timeout=10, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        sys.exit(1)

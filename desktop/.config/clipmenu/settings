@@ -1,0 +1,6 @@
+# Shared by the history collector and dmenu picker.
+export CM_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/clipmenu"
+export CM_MAX_CLIPS=200
+export CM_SELECTIONS=clipboard
+export CM_LAUNCHER="$HOME/.local/bin/desktop-menu"
+export CM_HISTLENGTH=10

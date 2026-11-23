@@ -1,0 +1,100 @@
+[bar/main]
+monitor = ${env:MONITOR:}
+width = 100%
+height = 32
+background = {{bg}}
+foreground = {{fg}}
+font-0 = {{ui_font}}:size=10;2
+font-1 = {{mono_font}}:size=9;2
+padding = 1
+module-margin = 1
+modules-left = launcher bspwm
+modules-center = title
+modules-right = temperature pulseaudio brightness battery date lock tray
+wm-restack = bspwm
+enable-ipc = true
+line-size = 2
+
+[bar/secondary]
+inherit = bar/main
+modules-right = temperature pulseaudio date lock
+
+[module/launcher]
+type = custom/text
+format = Apps
+format-foreground = {{accent}}
+click-left = ~/.local/bin/app-launcher
+click-right = ~/.local/bin/desktop-control power
+
+[module/tray]
+type = internal/tray
+tray-size = 16
+tray-spacing = 8
+
+[module/bspwm]
+type = internal/bspwm
+pin-workspaces = true
+label-focused = %name%
+label-focused-foreground = {{accent}}
+label-focused-background = {{surface}}
+label-focused-underline = {{accent}}
+label-focused-padding = 1
+label-occupied = %name%
+label-occupied-padding = 1
+label-empty = %name%
+label-empty-foreground = {{muted}}
+label-empty-padding = 1
+label-urgent = %name%!
+label-urgent-foreground = {{red}}
+
+[module/title]
+type = internal/xwindow
+label = %title:0:24:...%
+
+[module/pulseaudio]
+type = internal/pulseaudio
+use-ui-max = false
+interval = 5
+label-volume = VOL %percentage%%
+label-volume-foreground = {{green}}
+label-muted = Muted
+label-muted-foreground = {{red}}
+click-right = pavucontrol
+
+[module/brightness]
+type = custom/script
+exec = ~/.local/bin/desktop-status brightness
+interval = 3
+label-foreground = {{yellow}}
+scroll-up = ~/.local/bin/desktop-control bright-up
+scroll-down = ~/.local/bin/desktop-control bright-down
+
+[module/battery]
+type = custom/script
+exec = ~/.local/bin/desktop-status battery
+interval = 15
+label-foreground = {{green}}
+
+[module/date]
+type = internal/date
+interval = 1
+date = %a %d %b  %H:%M
+label = %date%
+
+[module/lock]
+type = custom/text
+format = Lock
+format-foreground = {{accent}}
+click-left = ~/.local/bin/desktop-control power
+click-right = ~/.local/bin/desktop-control power
+
+[module/temperature]
+type = custom/script
+exec = ~/.local/libexec/polybar-temperature
+interval = 3
+format = <label>
+format-prefix = 
+format-prefix-foreground = {{accent}}
+label = %output%
+label-font = 1
+label-foreground = {{subtext}}

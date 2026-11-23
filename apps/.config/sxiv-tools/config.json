@@ -1,0 +1,6 @@
+{
+  "wallpaper_directories": ["~/Pictures/Wallpapers"],
+  "include_theme_wallpapers": true,
+  "screenshot_directory": "~/Pictures/Screenshots",
+  "editor": []
+}

@@ -1,0 +1,28 @@
+#!/bin/bash
+# Short, replaceable volume, microphone and brightness indicators for Dunst.
+. "$HOME/.local/libexec/desktop-backlight.sh"
+kind=${1:-}
+case "$kind" in
+    volume|mic)
+        device=@DEFAULT_AUDIO_SINK@; title=Volume; icon=audio-volume-high
+        if [[ "$kind" == mic ]]; then
+            device=@DEFAULT_AUDIO_SOURCE@; title=Microphone; icon=microphone-sensitivity-high
+        fi
+        output=$(wpctl get-volume "$device") || exit 1
+        [[ "$output" =~ Volume:[[:space:]]*([0-9]+([.][0-9]+)?) ]] || exit 1
+        percent=$(awk -v volume="${BASH_REMATCH[1]}" 'BEGIN {printf "%.0f", volume * 100}')
+        value=$percent; body="$percent%"
+        if [[ "$output" == *'[MUTED]'* ]]; then
+            value=0; body=Muted; icon=audio-volume-muted
+            [[ "$kind" != mic ]] || icon=microphone-sensitivity-muted
+        fi ;;
+    brightness)
+        read_backlight || { echo 'No display backlight found' >&2; exit 1; }
+        title=Brightness; percent=$BACKLIGHT_PERCENT; value=$percent
+        body="$percent%"; icon=display-brightness ;;
+    *) printf 'Usage: desktop-notify {volume|mic|brightness}\n' >&2; exit 2 ;;
+esac
+(( value >= 0 )) || value=0
+(( value <= 100 )) || value=100
+exec notify-send -a Desktop -e -u low -t 1500 -i "$icon" \
+    -h "string:x-dunst-stack-tag:desktop-$kind" -h "int:value:$value" "$title" "$body"

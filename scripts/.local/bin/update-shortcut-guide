@@ -1,0 +1,799 @@
+#!/usr/bin/python3
+"""Rebuild the Markdown guide from non-secret key files and pinned defaults."""
+import ast
+from collections import Counter
+from datetime import date
+from pathlib import Path
+import re
+import subprocess
+import tomllib
+
+HOME = Path.home()
+DEST = HOME / '.config/bspwm/SHORTCUTS.md'
+SOURCE = HOME / '.local/share/shortcut-guide/sources'
+parts = []
+
+
+def add(text):
+    parts.append(text.strip() + '\n')
+
+
+def esc(value):
+    return str(value).replace('|', '&#124;').replace('\n', ' ')
+
+
+def table(headers, entries):
+    add('| ' + ' | '.join(headers) + ' |\n| ' + ' | '.join('---' for _ in headers) + ' |\n'
+        + '\n'.join('| ' + ' | '.join(esc(v) for v in row) + ' |' for row in entries))
+
+
+def keys(text, origin='Default'):
+    table(['Key or command', 'What it does', 'Origin'],
+          [(key, action, origin) for key, action in (line.split(' :: ', 1) for line in text.strip().splitlines())])
+
+
+def section(title):
+    add('## ' + title)
+
+
+def parse_aerc(path):
+    result = []
+    context = 'global'
+    for line in path.read_text().splitlines():
+        if line.startswith('['):
+            context = line.strip('[]')
+        elif line.strip() and not line.startswith('#') and '=' in line:
+            key, action = line.split('=', 1)
+            result.append((context, key.strip(), action.strip()))
+    return result
+
+
+add(f'''# Desktop and application shortcut guide
+
+Updated: {date.today().isoformat()}. Source of truth: this machine's current configuration,
+installed manuals and the pinned upstream Yazi 26.9.1 defaults. Run
+`~/.local/bin/update-shortcut-guide` after changing key files to refresh the generated sections.
+
+Press **Alt+F1** to open this file in Neovim. Press **Space then /** for live fuzzy search,
+type an app and action (examples: `yazi new tab`, `aerc attach`, `nchat send`, `print cancel`),
+then Enter to jump to the result. Escape cancels. **Space f f** is an alternative.
+The picker runs only when opened; there is no background indexing service.
+
+For ordinary Neovim search use `/words` then Enter, `n` next and `N` previous.
+`:ShortcutSearch` works from any Neovim buffer; `:Shortcuts` opens this guide.
+
+Notation: **Win = Super**, **Ctrl = C**, **Alt = A/M**, **Shift = S**. `Space m t`
+means press the keys in sequence; `Ctrl+X then Shift+P` means release Ctrl+X before
+pressing Shift+P. Uppercase letters are case-sensitive. Neovim's leader is Space.
+Tables say whether a key is custom, a default, or a configured value whose origin
+has not been established. Context matters: aerc inbox and viewer keys differ,
+and Neovim Normal/Insert/Visual/Terminal modes have different meanings.
+
+Desktop shortcuts take priority over application shortcuts. This guide documents
+existing behavior; it does not add all the defaults as new bindings.
+''')
+
+section('Contents and quick tasks')
+add('''Search the section names with `/`, or use the fuzzy picker. Local file links open with
+Enter, gf or gx. Heading links are not used because the current Markdown link helper
+does not navigate heading anchors.
+
+- Desktop / bspwm / launchers / notifications / monitors
+- Printing / queue / cancel / Android / paper tray
+- Yazi: every shipped keymap context plus local overrides
+- nchat: effective keys and installed manual differences
+- aerc: workflow and every configured context
+- tremc and Transmission: every defined action, plus daemon commands
+- Neovim: modes, navigation, editing, windows, search, completion, C builds
+- Markdown notes and installed plugins: Markview, image.nvim, Minuet
+- sxiv/nsxiv, Zathura, Firefox, Kitty, tmux, mpv, passwords and desktop menus
+- Conflicts, source files, and how to update this guide
+''')
+keys('''Alt+F1 :: Open this Markdown shortcut guide in Neovim
+Space / (in this guide) :: Fuzzy find any shortcut by app, action or key
+Win+Y :: Open normal Yazi file manager
+Ctrl+Shift+P :: Open Yazi print picker; Space selects files, Enter opens dialog
+Win+M :: Open aerc email
+Win+W :: Open nchat messaging
+Win+T :: Open tremc torrent client
+Win+Shift+T :: Torrent menu: add magnet/file, pause/resume all, Downloads
+Win+F :: Open Firefox with temporary private profile
+Win+Shift+F :: Choose Firefox profile
+Win+Shift+B :: Bookmarks menu
+Win+Shift+P :: Password menu (different from Ctrl+Shift+P printing)''', 'Custom')
+
+section('Desktop — every configured sxhkd binding')
+add('Source: [sxhkdrc](/home/master/.config/sxhkd/sxhkdrc). Braces pair keys and directions in order. Alt+h/j/k/l means left/down/up/right.')
+desktop = []
+pending = None
+for line in (HOME / '.config/sxhkd/sxhkdrc').read_text().splitlines():
+    if not line.strip() or line.lstrip().startswith('#'):
+        continue
+    if not line[0].isspace():
+        pending = line.strip()
+    elif pending:
+        desktop.append((pending, line.strip()))
+        pending = None
+labels = {
+    'print-files': 'Open Yazi print picker and print dialog',
+    'kitty': 'Open terminal', 'app-launcher': 'Search and launch applications',
+    'file-manager': 'Open Yazi', 'rustdesk-1.5.0-x86_64.AppImage': 'Open RustDesk remote desktop',
+    'mail-open': 'Open aerc email (background inbox checking continues)',
+    'desktop-theme': 'Choose complete desktop theme', 'clipboard-menu': 'Choose clipboard history entry',
+    'emoji-picker': 'Choose emoji; paste with Ctrl+V', 'drive-menu': 'Mount/open/unmount/eject drives',
+    'wallpaper-picker': 'Browse wallpapers in sxiv', 'screenshot-browser': 'Browse screenshots in sxiv',
+    'password-menu': 'Choose encrypted account and copy password', 'browser-menu': 'Open/add Firefox bookmarks',
+    'nchat-open': 'Open nchat/WhatsApp', 'codex-tmux': 'Choose tmux session or launch in a folder',
+    'screen-ocr': 'Select screen region and copy recognized text', 'steam-desktop': 'Open Steam on desktop 7 with NVIDIA PRIME',
+    'camera-viewer': 'Choose camera stream', 'torrent-open': 'Open tremc; downloads continue in background',
+    'torrent-menu': 'Add magnet/torrent; Downloads; pause/resume all',
+    'amazon-labels-pick': 'Choose Amazon PDFs in Yazi; generate label sheet',
+    'bspwm-reload-menu': 'Reload menu: bspwm, shortcuts, bar, compositor, notifications',
+    'monitor-layout': 'Reapply automatic monitor layout',
+}
+bspc = {
+    'bspc desktop -f last': 'Focus previous desktop',
+    'bspc node -f {west,south,north,east}': 'Focus left/down/up/right window',
+    'bspc node -s {west,south,north,east}': 'Swap with left/down/up/right window',
+    'bspc node -z {left -30 0,bottom 0 30,top 0 -30,right 30 0}': 'Resize window left/down/up/right',
+    "bspc desktop -f '{1-9}'": 'Focus desktop 1–9',
+    "bspc node -d '{1-9}' --follow": 'Move window to desktop 1–9 and follow',
+    'bspc node -c': 'Close focused window', "bspc node -t '~fullscreen'": 'Toggle fullscreen',
+    "bspc node -t '~floating'": 'Toggle floating', 'bspc node -f next.local': 'Focus next local window',
+    'bspc desktop -l next': 'Toggle tiled/monocle layout', 'bspc node @/ -B': 'Balance window sizes',
+    'bspc monitor -f prev': 'Focus previous monitor', 'bspc monitor -f next': 'Focus next monitor',
+    'bspc node -m prev --follow': 'Move window to previous monitor and follow',
+    'bspc node -m next --follow': 'Move window to next monitor and follow',
+    'dunstctl close': 'Dismiss notification', 'dunstctl history-pop': 'Show notification history',
+    'dunstctl set-paused toggle': 'Toggle do-not-disturb',
+}
+def desktop_description(command):
+    if command in bspc:
+        return bspc[command]
+    name = command.split()[0].rsplit('/', 1)[-1]
+    if name == 'desktop-control':
+        return {'help': 'Open this guide in Neovim', 'power': 'Power menu: lock/shutdown/reboot/suspend',
+                'screenshot': 'Screenshot menu; save and copy', 'region': 'Select screenshot area directly',
+                'volume-up': 'Volume +5%', 'volume-down': 'Volume -5%', 'mute': 'Toggle speaker mute',
+                'mic': 'Toggle microphone mute', 'bright-up': 'Increase brightness',
+                'bright-down': 'Decrease brightness'}.get(command.split()[-1], command)
+    if name == 'firefox-profiles':
+        return 'Temporary private Firefox' if '--private' in command else 'Choose Firefox profile'
+    return labels.get(name, command)
+counts = Counter(k for k, _ in desktop)
+table(['Shortcut', 'Action', 'Origin / status'], [(k, desktop_description(c), 'Custom; DUPLICATE binding' if counts[k] > 1 else 'Custom') for k, c in desktop])
+
+section('Printing — files, queue, recovery and Android')
+add('''Default printer: `Canon_LBP2900_Windows`. USB is attached to Windows; Linux forwards
+Canon CAPT output through its Windows share. Windows, Linux and printer must stay on
+for phone → Linux → Windows printing. Network loss can interrupt a job; CUPS uses
+`retry-job` instead of stopping the entire queue. A completed Linux job confirms
+handoff, not physical paper output.
+''')
+keys('''Ctrl+Shift+P (desktop) :: Open print picker in Yazi; Space selects, Enter opens GtkLP, click Print to send
+Ctrl+P (normal Yazi) :: Open GtkLP for selected files or the hovered file
+Ctrl+P (Zathura, after reopening) :: Open GtkLP for current PDF; :print still uses limited built-in GTK 4 dialog
+Ctrl+X then Shift+P (sxiv) :: Open GtkLP for current image, or marked images in thumbnail mode
+Space / then print cancel (this guide) :: Fuzzy find queue and cancellation commands
+q (Yazi print picker) :: Cancel picker without opening print dialog
+Cancel (GtkLP dialog) :: Close dialog without sending the selected files''', 'Custom')
+keys('''gtklpq :: Open graphical CUPS queue manager; select job and cancel it
+http://localhost:631/jobs/ :: View/cancel jobs in browser on Linux
+lpstat -o :: List pending jobs and their IDs
+lpstat -t :: Show service, printer, default and pending jobs
+lpstat -W all -l -o Canon_LBP2900_Windows :: Show job details including held and completed jobs
+cancel Canon_LBP2900_Windows-ID :: Cancel one job; replace ID with actual number from lpstat
+cancel -a Canon_LBP2900_Windows :: Cancel all queued jobs for this printer
+lp -i Canon_LBP2900_Windows-ID -H resume :: Resume a held job; check whether it already physically printed first
+lp -d Canon_LBP2900_Windows /path/file.pdf :: Print immediately, without dialog
+lp -n 2 /path/file.pdf :: Print two copies immediately
+lp -P 1-3 /path/file.pdf :: Print document pages 1 through 3
+lpoptions -d Canon_LBP2900_Windows :: Set per-user default printer
+sudo cupsenable Canon_LBP2900_Windows :: Resume disabled printer if needed; requires administrator rights''', 'CUPS command')
+add('''### Android address and paper feed
+
+Android CUPS printer URI: `http://master.local:631/printers/Canon_LBP2900_Windows`.
+Enable CUPS Printing in Android Settings → Printing; choose the printer in a PDF's
+Print menu. `master.local` follows Linux IP changes when the phone/app supports mDNS.
+Avahi starts automatically and uses only a few MB of RAM. Windows is still addressed
+as `192.168.29.197`; if that IP changes, the Linux queue must be updated or the Windows
+IP reserved in the router. Changing Windows' account password also requires updating
+the saved printer credentials. Credentials are not stored in this guide.
+
+LBP2900 upper manual slot accepts one sheet and takes priority; lower multipurpose
+tray is used when the upper slot is empty. Installed driver offers only Auto source.
+To print from the lower tray, remove paper from the upper slot.
+''')
+
+section('Yazi — workflow, overrides and every shipped default')
+add('''Source: local keymap merged over upstream **v26.9.1**. Default keys overridden locally
+are replaced below, not presented as simultaneously active. `a` creates a file;
+end its name with `/` to create a directory. **New tab is `t t`**, not just `t`, in
+this installed version. `Space` toggles selection and advances; operations use
+selected files, otherwise the hovered file. Uppercase `D` permanently deletes.
+In chooser mode (`print-files`, aerc attachments, Amazon labels), Enter returns the
+chosen paths instead of opening them in a viewer. Normal Yazi opens PDFs in Zathura,
+images in sxiv, text in Neovim, media in mpv, and Office files in LibreOffice.
+
+The default `z` fuzzy file finder requires fzf; `Z` directory jump requires zoxide
+and its directory history. Missing optional executables can make a shipped binding
+unavailable. Yazi's own F1/~ help shows the live effective keys.
+''')
+default = tomllib.loads((SOURCE / 'yazi-v26.9.1.toml').read_text())
+overrides = tomllib.loads((HOME / '.config/yazi/keymap.toml').read_text())
+def normkey(on):
+    return tuple(on) if isinstance(on, list) else (on,)
+for context, config in default.items():
+    add('### Yazi — ' + context)
+    prepend = overrides.get(context, {}).get('prepend_keymap', [])
+    replaced = {normkey(b['on']) for b in prepend}
+    bindings = [(b, 'Custom') for b in prepend] + [(b, 'Default') for b in config.get('keymap', []) if normkey(b['on']) not in replaced]
+    table(['Key sequence', 'Action', 'Origin'], [(' then '.join(normkey(b['on'])), b.get('desc') or b['run'], origin) for b, origin in bindings])
+
+section('nchat — chats, messages, attachments and input')
+add('''Launch with Win+W. Source: effective `~/.config/nchat/key.conf` and installed nchat
+5.19.18 manual. The file includes defaults as well as changes; rows explicitly say
+when a value differs from the installed manual. No Vim keymap is configured here.
+Arrow Up selects a message; Down returns toward the composer. Enter inserts a newline;
+Ctrl+X sends. Message actions require the message to be selected.
+
+Ctrl+V is configured as Open; its helper uses inline Kitty image viewing where
+possible, mpv for audio/video and the default application for other files.
+Ctrl+W explicitly opens links with the configured Firefox private-window command.
+The guide does not assume Ctrl+V pastes text: clipboard paste is Alt+V.
+Ctrl+G toggles help and Ctrl+O shows additional commands.
+
+Desktop Alt+N / Alt+P combinations may intercept app shortcuts; Alt+N is globally
+assigned to dismiss notifications, so nchat's contact-search Alt+N can be intercepted.
+''')
+nchat_actions = {
+ 'archive_chat':'Archive current chat', 'auto_compose':'Automatically compose a reply (requires configured backend)',
+ 'backspace':'Delete previous character', 'backspace_alt':'Alternate backspace key',
+ 'backward_kill_word':'Delete previous word', 'backward_word':'Move backward one word',
+ 'begin_line':'Start of input line', 'cancel':'Cancel dialog/action', 'clear':'Clear input',
+ 'copy':'Copy selected message or input text', 'cut':'Cut input text to clipboard',
+ 'decrease_list_width':'Narrow chat list', 'delete':'Delete next character',
+ 'delete_chat':'Delete/leave current chat', 'delete_line_after_cursor':'Delete input after cursor',
+ 'delete_line_before_cursor':'Delete input before cursor', 'delete_msg':'Delete selected message',
+ 'down':'Select next message / move down', 'edit_msg':'Edit selected message', 'end':'End',
+ 'end_line':'End of input line', 'ext_call':'External telephone call', 'ext_edit':'Compose in external editor',
+ 'find':'Find text in chat', 'find_next':'Next chat search match', 'forward_msg':'Forward selected message',
+ 'forward_word':'Move forward one word', 'goto_chat':'Choose/jump to chat', 'home':'Home',
+ 'increase_list_width':'Widen chat list', 'jump_pinned':'Jump to pinned message',
+ 'jump_quoted':'Jump to quoted/replied message', 'kill_word':'Delete next word', 'left':'Move left',
+ 'linebreak':'Insert newline in composer', 'next_chat':'Next chat', 'next_page':'Next history page',
+ 'ok':'Confirm choice/dialog', 'open':'Open selected attachment/message content', 'open_link':'Open selected message link',
+ 'open_msg':'Open message in external viewer', 'other_commands_help':'Show additional commands',
+ 'paste':'Paste clipboard text', 'pin':'Pin/unpin current chat', 'prev_chat':'Previous chat',
+ 'prev_page':'Previous history page', 'quit':'Quit nchat UI', 'react':'Add/remove selected message reaction',
+ 'right':'Move right', 'save':'Download/save selected attachment', 'select_contact':'Search/select contact',
+ 'select_emoji':'Insert emoji', 'select_mention':'Insert mention (configured Alt+2)',
+ 'send_msg':'Send message or reply to selected message', 'spell':'External spell check',
+ 'tab':'Literal Alt+Tab event', 'toggle_emoji':'Toggle displayed emojis', 'toggle_help':'Toggle help bar',
+ 'toggle_list':'Toggle chat/contact list', 'toggle_top':'Toggle top bar (disabled)',
+ 'transfer':'Choose/send file attachment', 'unread_chat':'Jump to unread chat', 'up':'Select previous message / move up',
+}
+def nchat_key(raw):
+    known = {'KEY_RETURN':'Enter', 'KEY_BTAB':'Shift+Tab', 'KEY_NPAGE':'PageDown', 'KEY_PPAGE':'PageUp',
+             'KEY_DC':'Delete', 'KEY_ALT_BACKSPACE':'Alt+Backspace', 'KEY_NONE':'Unbound',
+             '\\4001040':'Alt+Left (terminal keycode)', '\\4001057':'Alt+Right (terminal keycode)',
+             '\\4001006':'Alt+Delete (terminal keycode)'}
+    if raw in known: return known[raw]
+    if raw.startswith('KEY_CTRL'): return 'Ctrl+' + raw[8:]
+    if raw.startswith('KEY_'): return raw[4:].title()
+    codes = re.findall(r'\\([0-7]{1,3})', raw)
+    if codes:
+        decoded = ''.join(chr(int(c, 8)) for c in codes)
+        if decoded.startswith('\x1b'):
+            suffix = decoded[1:]
+            return 'Alt+' + {'\x7f':'Backspace', '\t':'Tab'}.get(suffix, suffix)
+    return raw
+entries = []
+for line in (HOME / '.config/nchat/key.conf').read_text().splitlines():
+    if '=' not in line: continue
+    action, raw = line.split('=',1)
+    if action.startswith('terminal_'): continue
+    origin = 'Configured; matches manual/default where listed'
+    if action in ('jump_pinned','toggle_top','select_mention'):
+        origin = 'Configured; differs from manual: Ctrl+P top bar / Alt+@ mention'
+    entries.append((nchat_key(raw), nchat_actions.get(action, action.replace('_',' ')), origin))
+table(['Key', 'Action', 'Origin'], entries)
+
+section('aerc — practical mail workflow')
+add('''Win+M opens email. Use j/k to select mail, Enter to view, q to close viewer.
+In the inbox, J/K selects folders; in the viewer J/K changes messages.
+`m` composes. The embedded editor is Neovim: `:wq` saves/exits the body and opens
+review; review `y` sends, `p` postpones, `a` opens the Yazi attachment picker.
+In that picker select with Space and confirm with Enter. Review `n` discards
+immediately, so do not use it as a navigation key. `d`/`D` in this configuration
+moves mail to Gmail Trash, unlike upstream defaults that can delete it.
+
+`Ctrl+J` / `Ctrl+K` moves MIME parts in the viewer; `o` opens the selected attachment,
+`S` starts saving it. `Ctrl+L` opens a link chooser. `rr` replies to all; `Rr` replies
+to sender. Gmail folder shortcuts assume English folder names.
+
+The complete table below shows commands as well as keys; `:cf` means change folder,
+`:next/:prev` navigate, `:mark` selects, and `:move` moves messages. `<Enter>` executes;
+`<space>` at the end leaves a prompt for your argument. Global keys are inherited
+except in contexts marked `$noinherit`. `$ex` is the command prompt key in that context,
+usually Ctrl+X in compose/editor/terminal. These are live configured bindings, compared
+against `/usr/share/aerc/binds.conf` to distinguish unchanged defaults.
+''')
+installed = {(context,key):action for context,key,action in parse_aerc(Path('/usr/share/aerc/binds.conf'))}
+local = parse_aerc(HOME / '.config/aerc/binds.conf')
+for context in dict.fromkeys(c for c,_,_ in local):
+    add('### aerc — ' + context)
+    table(['Key or directive', 'Action / exact command', 'Origin'], [(k,a,'Default (same as shipped)' if installed.get((c,k))==a else 'Custom / local override') for c,k,a in local if c==context])
+
+section('tremc — every installed action and default key')
+add('''Win+T opens tremc, the terminal UI for the Transmission daemon. Closing tremc with q
+does not stop downloads. **Uppercase X asks the daemon to quit. Uppercase R deletes
+downloaded data**, whereas lowercase r removes the torrent but keeps its files.
+Space marks torrents; p pauses/resumes, a adds, / searches, f filters, s sorts.
+Enter/l opens details. In details f selects Files; Enter opens a file through the
+configured Yazi viewer. F1 or ? shows live help; backtick shows unbound actions.
+No `[Keys]` overrides are configured, so the following keys are defaults extracted
+from the installed `/usr/bin/tremc`. Empty key lists are explicitly marked unbound.
+Some labels/groups depend on the Transmission RPC version.
+''')
+source = Path('/usr/bin/tremc').read_text()
+start = source.index('        self.actions = {') + len('        self.actions = ')
+end = source.index('\n        self.keys =', start)
+node = ast.parse(source[start:end].strip(), mode='eval').body
+def literal(node):
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return 'tremc' + ast.literal_eval(node.right)
+    return ast.literal_eval(node)
+entries = []
+for key, value in zip(node.keys,node.values):
+    name = ast.literal_eval(key)
+    group, keylist = ast.literal_eval(value.elts[0]), ast.literal_eval(value.elts[1])
+    description = literal(value.elts[2])
+    if isinstance(keylist,str): keylist = [keylist]
+    def human(k):
+        aliases = {'DC':'Delete', 'SDC':'Shift+Delete', 'SPACE':'Space', 'PPAGE':'PageUp', 'NPAGE':'PageDown', 'BTAB':'Shift+Tab', 'BREAK':'Break'}
+        return 'Ctrl+' + k[1:].upper() if k.startswith('^') else aliases.get(k,k.title() if len(k)>1 else k)
+    context = {0:'All',1:'Torrent list',2:'Details',3:'Files',4:'Trackers',16:'Movement'}.get(group & 255, 'All')
+    entries.append((', '.join(map(human,keylist)) or 'Unbound', description + ' (' + name + ')', context, 'Default'))
+table(['Key', 'Action', 'Context', 'Origin'], entries)
+
+section('Transmission — daemon, menus and CLI')
+add('''Transmission is the background download engine; tremc is its UI. There is no
+Transmission GTK application installed here, so GTK shortcuts are not claimed active.
+Win+Shift+T offers Open client / Add magnet / Add torrent file / Downloads /
+Pause all / Resume all. Win+T starts/connects to the managed daemon as needed.
+The desktop menu reads your saved RPC authentication internally. Direct
+`transmission-remote` commands need authentication from a private netrc file or
+equivalent; the examples below intentionally do not embed the saved password.
+Closing the UI keeps downloads running while the daemon/session is alive; this is
+not a promise to download while the computer is powered off.
+''')
+keys('''transmission-remote --help :: List all installed remote-control options
+transmission-remote -N /path/to/private.netrc -l :: List torrents using a protected netrc authentication file
+transmission-remote -N /path/to/private.netrc -a /path/file.torrent :: Add torrent file or magnet URI
+transmission-remote -N /path/to/private.netrc -t ID -S :: Stop/pause one torrent
+transmission-remote -N /path/to/private.netrc -t ID -s :: Start/resume one torrent
+transmission-remote -N /path/to/private.netrc -t ID -i :: Show torrent information
+transmission-remote -N /path/to/private.netrc -t ID -f :: List torrent files
+transmission-remote -N /path/to/private.netrc -t ID -v :: Verify local torrent data
+transmission-remote -N /path/to/private.netrc -t ID -r :: Remove torrent, keeping downloaded data
+transmission-remote -N /path/to/private.netrc -t ID -rad :: Remove torrent AND delete data
+transmission-remote -N /path/to/private.netrc -t all -S :: Pause all torrents
+transmission-remote -N /path/to/private.netrc -t all -s :: Resume all torrents''', 'CLI, authentication required')
+
+section('Neovim — modes, movement and editing defaults')
+add('''Installed Neovim uses native packages, not Lazy or another plugin manager.
+Leader is Space. Defaults below apply in Normal mode unless specified. Desktop
+Alt shortcuts may be intercepted before Neovim sees them. Check `:verbose nmap KEY`
+or `:verbose imap KEY` to see the actual mapping and where it was defined.
+For exhaustive built-in help use `:help index`, `:help quickref` and `:help vim-differences`.
+''')
+keys('''Esc / Ctrl+[ :: Return to Normal mode
+i / a :: Insert before cursor / append after cursor
+I / A :: Insert at line start / append at line end
+o / O :: Open line below / above and enter Insert
+v / V / Ctrl+V :: Character / line / block Visual selection
+h / l :: Move left / right
+j / k :: Move wrapped screen rows without a count; with count move physical lines (custom override)
+w / b / e :: Next word start / previous word start / word end
+W / B / E :: Same motions using whitespace-delimited WORDs
+0 / ^ / $ :: Start of line / first nonblank / end of line
+gg / G / 25G :: First line / last line / line 25
+{ / } :: Previous / next paragraph
+% :: Jump to matching bracket
+f<char> / F<char> :: Find character forward / backward on line
+t<char> / T<char> :: Move just before character forward / backward
+; / , :: Repeat / reverse latest character-find motion
+Ctrl+D / Ctrl+U :: Scroll half page down / up
+Ctrl+F / Ctrl+B :: Scroll page down / up
+zz / zt / zb :: Center cursor line / put at top / bottom
+Ctrl+O / Ctrl+I :: Previous / next jump location
+ma / 'a / `a :: Set mark a / jump to its line / exact position
+dd / 3dd :: Delete/cut line / three lines
+dw / diw / daw :: Delete to next word / inner word / word plus surrounding space
+d$ / D :: Delete to end of line
+x / X :: Delete character under / before cursor
+cc / ciw / C :: Change line / inner word / to end of line
+yy / Y / yw :: Yank line / to end of line / word motion
+p / P :: Paste after / before cursor
+"+y / "+p :: Copy to / paste from system clipboard when clipboard provider is available
+u / Ctrl+R :: Undo / redo
+. :: Repeat last editing change
+r<char> / R :: Replace one character / enter Replace mode
+J :: Join next line
+> / < (Visual) :: Indent / unindent selection
+>> / << :: Indent / unindent line
+== / gg=G :: Reindent line / whole file
+~ / g~motion / gu / gU :: Toggle / change case using a motion
+qa ... q / @a / @@ :: Record macro a / replay macro a / repeat last macro
+:w / :w filename :: Save / save as
+:q / :wq / :q! :: Quit / save and quit / discard buffer edits and quit
+:wa / :qa / :wqa :: Save all / quit all / save all and quit
+:e filename :: Open or create a file
+:enew :: Open empty buffer
+:set paste / :set nopaste :: Toggle paste mode if terminal paste needs it
+Ctrl+R + (Insert) :: Insert system clipboard register
+Ctrl+W (Insert) :: Delete previous word
+Ctrl+U (Insert) :: Delete input back to line start
+Ctrl+O (Insert) :: Execute one Normal-mode command then resume Insert''')
+
+section('Neovim — search, buffers, splits, tabs and diagnostics')
+keys('''/text / ?text :: Search forward / backward; Enter confirms
+n / N :: Next / previous search match
+* / # :: Search word under cursor forward / backward
+:noh :: Clear search highlighting
+:%s/old/new/g :: Replace all matches in file
+:%s/old/new/gc :: Replace all with confirmation
+:s/old/new/g :: Replace matches on current line
+:vimgrep /pattern/gj **/* :: Search project files into quickfix (can be slow in large trees)
+:copen / :cclose :: Open / close quickfix list
+:cnext / :cprevious :: Next / previous quickfix entry
+:ls / :buffers :: List buffers
+:b name / :buffer N :: Switch to buffer by name / number
+:bnext / :bprevious :: Next / previous buffer
+:bdelete :: Close buffer; unsaved changes require save or explicit !
+Ctrl+^ :: Alternate buffer
+:split file / :vsplit file :: Horizontal / vertical split
+Ctrl+W then h/j/k/l :: Focus split left/down/up/right
+Ctrl+W then w :: Cycle windows
+Ctrl+W then c / o :: Close split / keep only current split
+Ctrl+W then = :: Equalize split sizes
+Ctrl+W then + / - / > / < :: Adjust split height / width
+:tabnew file :: Create Neovim tab page
+gt / gT :: Next / previous Neovim tab
+:tabclose :: Close current tab page
+gf :: Open file under cursor (overridden on Markdown links)
+:find filename :: Find file using configured path
+:terminal :: Open terminal in current window
+Ctrl+backslash then Ctrl+N (Terminal) :: Leave terminal input mode
+i (terminal buffer Normal mode) :: Re-enter terminal input
+:help topic :: Open local Neovim help
+Ctrl+] / Ctrl+T (help) :: Follow help tag / jump back
+:map / :nmap / :imap :: List effective mappings
+:verbose nmap KEY :: Show mapping definition and originating config
+:checkhealth :: Check installed runtime and integrations''')
+
+section('Neovim — local custom keys and C development')
+keys('''Space e :: Toggle netrw tree sidebar using :Lexplore 28
+Space n / Space p :: Next / previous compiler quickfix diagnostic
+Space h :: Clear search highlighting
+F5 / :CBuild :: Save and build C source; nearest Makefile or GCC/Clang C17
+F6 / :CRun :: Build then run in terminal; Makefile projects ask executable path
+Esc then Esc (Terminal) :: Leave terminal input mode
+Tab (Insert) :: Accept visible Minuet AI suggestion; otherwise insert Tab
+Space / or Space f f (guide only) :: Open live fuzzy shortcut search
+:Shortcuts :: Open this guide from any buffer
+:ShortcutSearch :: Open this guide and fuzzy search from any buffer''', 'Custom')
+keys('''Ctrl+N / Ctrl+P (Insert) :: Next / previous built-in completion candidate
+Ctrl+X then Ctrl+F (Insert) :: Complete filesystem path
+Ctrl+X then Ctrl+O (Insert, C/C++) :: Built-in C omni completion; not a language server
+Ctrl+Y / Ctrl+E (completion menu) :: Accept / cancel completion
+Enter (netrw sidebar) :: Open hovered file in editing window
+- (netrw) :: Parent directory
+d / % / R / D (netrw) :: Create directory / create file / rename / delete; confirm destructive operations
+i (netrw) :: Cycle listing style
+:bdelete! (terminal Normal mode) :: Force-close terminal buffer; may terminate a running program''')
+add('''C builds use `-std=c17 -Wall -Wextra -Wpedantic -g` for single files and put
+the executable beside the source. Makefile projects control their flags/output.
+C indentation is four spaces. Makefiles retain tabs. There is **no configured
+LSP server, Telescope, nvim-cmp, orgmode.nvim or lazy.nvim** in this setup.
+''')
+
+section('Markdown notes — links, preview, images and organization')
+add('''Your org-style workflow currently uses ordinary Markdown, Markview and the custom
+link helper; it is not orgmode.nvim. Use `#`, `##`, `###` headings; `-` lists;
+`- [ ]` tasks and `- [x]` completed tasks; Markdown tables; and fenced code blocks.
+Checkboxes are edited as text: no task-toggle key is configured. Folding headings
+or inserting new list markers automatically is not configured either.
+
+Use `[Note](notes/topic.md)` or `[[notes/topic]]` to connect files. The helper creates
+missing parent directories and files; wiki targets without an extension get `.md`.
+Relative paths are resolved beside the current note. URL targets open in the
+configured browser. File fragments after # are stripped; heading navigation is
+not implemented. Enter/gf/gx do nothing useful away from a recognized inline or
+wiki link. Markdown rendering uses two-space indentation.
+''')
+keys('''Enter / gf / gx (Markdown Normal) :: Open link under cursor; create missing local target note
+Space m t :: Toggle Markview rendered Markdown preview for current buffer
+Space m s :: Toggle separate Markview split preview
+:Markview toggle :: Toggle current preview
+:Markview splitToggle :: Toggle rendered split preview
+:help markview.nvim :: Open installed Markview reference
+:edit notes/topic.md :: Create/open note directly
+:write :: Save current note
+/TODO :: Search task text using normal Neovim search
+Space / (this guide) :: Fuzzy search commands and shortcuts''', 'Custom / configured plugin commands')
+add('''### Installed plugins and their actual controls
+
+**Markview** renders headings, bullets, checkboxes, tables, code and links. It renders
+in Normal/command/Insert modes, with hybrid editing in Insert. Its gx mapping is disabled
+so the custom note-link helper handles gx. Controls are Space m t and Space m s above.
+
+**image.nvim** displays inline Markdown images in interactive Kitty; tmux passthrough
+is enabled. No image manipulation shortcut is configured. Local image embeds such as
+`![diagram](images/diagram.png)` render automatically. Remote image downloading is
+enabled and can use network/data on opening a document. Images clear while inserting
+and render only while the editor is focused. It is disabled in headless sessions.
+
+**Minuet AI / Gemini** provides inline suggestions. Context is sent to Google when
+enabled, so use `:AIToggle` when you do not want suggestions/network requests in a buffer.
+This guide is opened with AI auto-trigger disabled for its buffer. API credentials
+are kept separately and never included in this document.
+''')
+keys('''Tab (Insert, AI suggestion visible) :: Accept complete suggestion
+Ctrl+G then Ctrl+J (Insert) :: Accept one suggestion line
+Ctrl+G then Ctrl+N (Insert) :: Next suggestion
+Ctrl+G then Ctrl+P (Insert) :: Previous suggestion
+Ctrl+] (Insert) :: Dismiss suggestion
+:AIToggle :: Toggle automatic suggestions in current buffer
+:GeminiStatus :: Show whether key exists and current model; does not show key
+:GeminiCheck :: Test API access; makes network request
+:GeminiSetup :: Enter API key in masked prompt and test access''', 'Custom Minuet/Gemini configuration')
+
+section('sxiv / nsxiv — image viewer')
+add('''`sxiv` is a symlink to nsxiv. Uppercase P by itself means previous marked image;
+printing requires the Ctrl+X prefix. The external handler receives marked files
+in thumbnail mode, otherwise the current file. Ctrl+P alone is **not** a print
+binding; it moves backward through animation frames in image mode.
+''')
+keys('''Ctrl+X then Shift+P :: Open print dialog for current/marked images
+Ctrl+X then a :: Image action menu (includes Print images)
+Ctrl+X then p :: Copy path(s) to clipboard
+Ctrl+X then y :: Copy image to clipboard
+Ctrl+X then o :: Open containing folder
+Ctrl+X then e :: Open configured/available image editor
+Ctrl+X then i :: Show image dimensions and information
+Ctrl+X then w :: Apply wallpaper and matching lock screen''', 'Custom')
+keys('''Enter :: Switch image / thumbnail mode
+q / Q :: Quit; Q also outputs current file with -o when no marks
+h/j/k/l / arrows (thumbnails) :: Move thumbnail selection
+h/j/k/l / arrows (image) :: Pan image
+n / Space :: Next image
+p / Backspace :: Previous image
+g / G :: First / last image; a numeric count selects image index
+[ / ] :: Jump backward / forward ten images
+m / M :: Mark image / mark range from previous mark
+Ctrl+M / Ctrl+U :: Invert / clear marks
+N / P :: Next / previous marked image
++ / - :: Zoom in / out
+= :: 100% zoom; count sets a percentage
+w / W / F :: Fit large image without upscaling / fit window / fill window
+e / E :: Fit width / height
+f / b :: Toggle fullscreen / status bar
+r / R (thumbnail) :: Reload image / reload all thumbnails
+D :: Remove image from viewer list, not delete file
+< / > / ? :: Rotate left 90° / right 90° / 180°
+| / _ :: Flip horizontally / vertically
+s :: Toggle slideshow; count sets delay
+a / A :: Toggle antialiasing / transparency display
+Ctrl+N / Ctrl+P :: Next / previous animation frame
+Ctrl+A / Ctrl+Space :: Play/pause animation
+{ / } / Ctrl+G :: Decrease / increase / reset gamma''')
+
+section('Zathura — PDF viewer')
+keys('''Ctrl+P :: Open GtkLP print dialog for current PDF''', 'Custom')
+keys('''j/k / arrows :: Scroll down/up
+Space / Shift+Space :: Scroll forward/back a page
+J / K :: Next / previous page
+gg / G / 5G :: First / last / page 5
+/ / ? :: Search forward / backward
+n / N :: Next / previous search result
+a / s :: Fit height / width
++ / - / = :: Zoom in / out / original zoom
+f / F :: Follow link / display link target
+Tab :: Show table of contents
+d :: Toggle dual-page layout
+r :: Rotate 90 degrees
+Ctrl+R :: Recolor/invert
+F5 / F11 :: Presentation / fullscreen
+o / O :: Open another document
+m<letter> / '<letter> :: Set / jump to quickmark
+:print :: Built-in GTK 4 print dialog; this installation lists Print to File only
+:write filename :: Save PDF
+q :: Quit''')
+
+section('Firefox — profiles, bookmarks and browser defaults')
+add('''Default launcher opens temporary private Firefox. Bookmark rules route Netflix,
+Prime Video and JioHotstar to Persnal; Royal Ledger, Seller Central and Seller Flow
+to Shop. Persnal is encrypted with gocryptfs and prompts to unlock on a cold unlock.
+An already unlocked/running profile does not need mounting again. Closing a browser
+window alone is not proof that its encrypted profile was locked.
+Sources: ~/.local/bin/firefox-profiles and ~/.config/firefox-launcher/sites.json.
+''')
+keys('''Win+F :: Open temporary private Firefox
+Win+Shift+F :: Choose Firefox profile
+Win+Shift+B :: Open bookmark menu or add bookmark
+Ctrl+L :: Focus address bar
+Ctrl+T / Ctrl+W :: New tab / close tab
+Ctrl+Shift+T :: Restore closed tab (private browsing restoration is limited)
+Ctrl+Tab / Ctrl+Shift+Tab :: Next / previous tab
+Alt+Left / Alt+Right :: Back / forward
+Ctrl+R / Ctrl+Shift+R :: Reload / reload bypassing cache
+Ctrl+F :: Find on page
+Ctrl+D :: Bookmark current page
+Ctrl+P :: Browser print dialog
+Ctrl+Plus / Ctrl+Minus / Ctrl+0 :: Zoom in / out / reset
+F11 :: Fullscreen
+about:logins :: Saved logins page''', 'Desktop custom / Firefox defaults as described')
+
+section('Kitty terminal, shell and tmux')
+add('''Kitty has no custom map lines in kitty.conf; the table lists standard default keys.
+Ctrl+Shift+P is globally captured for the print picker, so Kitty's default prefix
+using that chord is unavailable here. tmux prefix is **Ctrl+A**, not the default
+Ctrl+B. tmux keys below require pressing/releasing Ctrl+A first unless stated.
+''')
+keys('''Ctrl+Shift+C / Ctrl+Shift+V :: Copy selection / paste clipboard in Kitty
+Ctrl+Shift+Enter :: New Kitty window (split)
+Ctrl+Shift+T :: New Kitty tab
+Ctrl+Shift+Q :: Close Kitty tab
+Ctrl+Shift+W :: Close Kitty window
+Ctrl+Shift+Right / Ctrl+Shift+Left :: Next / previous Kitty tab
+Ctrl+Shift+] / Ctrl+Shift+[ :: Next / previous Kitty window
+Ctrl+Shift+L :: Cycle Kitty layouts
+Ctrl+Shift+Plus / Ctrl+Shift+Minus :: Increase / decrease terminal font size
+Ctrl+Shift+Backspace :: Reset font size
+Ctrl+C (shell) :: Interrupt foreground command
+Ctrl+D (empty shell prompt) :: End input / exit shell
+Ctrl+Z (shell) :: Suspend foreground job; fg resumes it
+Ctrl+R (bash) :: Reverse history search
+Ctrl+A / Ctrl+E (bash outside tmux) :: Start / end of input line
+Ctrl+W / Ctrl+U / Ctrl+K (bash) :: Delete previous word / back to start / to end
+Tab (shell) :: Complete command/path''')
+keys('''Ctrl+A then h/j/k/l :: Focus tmux pane left/down/up/right
+Ctrl+A then Ctrl+H/J/K/L :: Resize pane by five cells
+Ctrl+A then b :: Paste tmux buffer to pane on the right
+Ctrl+A then o :: Select configured active-only layout (requires tmux layout support)
+Ctrl+A then Alt+- / Alt+| :: Even-vertical / even-horizontal layout
+Ctrl+A then Alt+R :: Rotate tmux window panes
+Enter (tmux vi copy mode) :: Copy selection to system clipboard using xsel
+Shift+mouse-wheel-up :: Enter tmux history/copy mode
+Mouse wheel over Codex :: Scroll tmux history when configured conditions match''', 'Custom tmux')
+keys('''Ctrl+A then c :: Create tmux window
+Ctrl+A then n / p :: Next / previous tmux window
+Ctrl+A then 0..9 :: Select tmux window number
+Ctrl+A then , :: Rename tmux window
+Ctrl+A then % / " :: Split vertically / horizontally
+Ctrl+A then x :: Kill pane after confirmation
+Ctrl+A then z :: Toggle pane zoom
+Ctrl+A then d :: Detach tmux session; processes continue
+Ctrl+A then s / w :: Session / window chooser
+Ctrl+A then [ :: Enter copy mode; move with vi keys
+Space then movement (vi copy mode) :: Start/extend selection
+q (copy mode) :: Exit copy mode
+Ctrl+A then ? :: List all effective tmux bindings
+Ctrl+A then : :: tmux command prompt
+Ctrl+A then :send-prefix Enter :: Send literal configured prefix Ctrl+A to the application (old Ctrl+B send-prefix binding is unbound)''', 'tmux defaults with custom prefix')
+
+section('mpv — video and audio playback defaults')
+keys('''Space / p :: Pause / resume
+q / Q :: Quit / quit and remember playback position
+Left / Right :: Seek back / forward five seconds
+Up / Down :: Seek forward / back one minute
+Shift+Left / Shift+Right :: Precise one-second seek
+< / > :: Previous / next playlist item
+9 / 0 :: Volume down / up
+m :: Mute
+f :: Fullscreen
+s / S :: Screenshot / screenshot without subtitles
+j / J :: Next / previous subtitle track
+v :: Toggle subtitle visibility
+# :: Cycle audio tracks
+[ / ] / Backspace :: Decrease / increase / reset speed
+. / , :: Step forward / backward one frame while paused
+o / O :: Show progress / toggle persistent progress
+i / I :: Show statistics / toggle persistent statistics''')
+
+section('Passwords, menus, screenshots and file workflows')
+keys('''Win+Shift+P :: Password picker; choose account, then paste password with Ctrl+V
+pass insert site/account :: Add encrypted login using local password prompts
+pass generate -c site/account 24 :: Generate password and copy it to clipboard
+pass -c site/account :: Copy existing password without printing it in terminal
+Win+Shift+C :: Clipboard history chooser
+Win+Shift+E :: Emoji chooser
+Win+Shift+D :: Drive menu: mount/open/unmount/safely remove
+Win+Shift+O :: OCR: select screen area, copy recognized text
+Print :: Screenshot menu: screen/window/area
+Shift+Print :: Capture selected area directly
+Esc / right-click (screenshot/OCR selection) :: Cancel selection
+Win+Shift+W :: Wallpaper browser in sxiv
+Win+Shift+S :: Screenshot browser in sxiv
+Win+Shift+L :: Amazon labels picker; select PDFs with Space then Enter
+Win+Shift+X :: Choose existing tmux/Codex session or create one in chosen folder
+Alt+Shift+R :: Reload menu for desktop components
+Esc (dmenu-style menus) :: Cancel menu
+Up/Down or Ctrl+P/Ctrl+N (dmenu) :: Move selection where supported; Enter confirms''', 'Custom workflow / standard commands')
+add('''Screenshots are saved in ~/Pictures/Screenshots and copied to clipboard. The
+password manager uses pass/GPG; unlock prompts are local. A private Firefox window
+does not save streaming logins; use the configured persistent Persnal profile for
+Netflix/Prime/Hotstar. Do not put passwords, API keys, mail account files or torrent
+RPC credentials into notes or this guide.
+''')
+
+section('Known conflicts and limits — read before assuming a key is broken')
+add('''- **Alt+Ctrl+P is defined twice** in sxhkd: screenshot menu and monitor refresh.
+  This is an existing conflict; the documentation update leaves both unchanged.
+  Use Print for screenshots. Use the command ~/.local/bin/monitor-layout --refresh
+  if monitor refresh does not respond to that chord.
+- Desktop Alt+N dismisses a notification and can intercept nchat contact search.
+- **Ctrl+Shift+P is global printing**, including inside terminal applications.
+- sxiv printing is **Ctrl+X then Shift+P**, not Ctrl+P. Lowercase p after Ctrl+X copies paths.
+- aerc Ctrl+P switches tabs; Yazi/Zathura Ctrl+P prints. Context matters.
+- Yazi **t t** creates a tab in version 26.9.1; a trailing / makes a new directory.
+- Markdown links support local files and wiki links, not heading jumps. This is a
+  Markdown workflow, not an installed Org-mode task/calendar system.
+- Only native Neovim packages currently installed are documented. No invented
+  Telescope/LSP/Org-mode leader shortcuts are listed as active.
+- Old SHORTCUTS.txt is a pointer to this guide; it is no longer the maintained list.
+- Defaults can change with package upgrades. Regenerate and compare pinned defaults
+  when upgrading; use the application's live help for the running version.
+''')
+
+section('Sources, live help and maintenance')
+add('''### Local configuration links
+
+- [Desktop shortcuts](/home/master/.config/sxhkd/sxhkdrc)
+- [Desktop help launcher](/home/master/.local/bin/desktop-control)
+- [Yazi keys](/home/master/.config/yazi/keymap.toml)
+- [Yazi file openers](/home/master/.config/yazi/yazi.toml)
+- [nchat keys](/home/master/.config/nchat/key.conf)
+- [aerc keys](/home/master/.config/aerc/binds.conf)
+- [Neovim configuration](/home/master/.config/nvim/init.lua)
+- [Markdown configuration](/home/master/.config/nvim/lua/markdown_setup.lua)
+- [Markdown link helper](/home/master/.config/nvim/lua/markdown_links.lua)
+- [sxiv actions](/home/master/.local/bin/sxiv-tools)
+- [Zathura keys](/home/master/.config/zathura/zathurarc)
+- [tmux configuration](/home/master/.tmux.conf)
+- [Kitty configuration](/home/master/.config/kitty/kitty.conf)
+- [Print picker](/home/master/.local/bin/print-files)
+- [Guide generator](/home/master/.local/bin/update-shortcut-guide)
+
+### Authoritative defaults and deeper help
+
+- Yazi 26.9.1 defaults: https://github.com/sxyazi/yazi/blob/v26.9.1/yazi-config/preset/keymap-default.toml
+- Yazi keymap commands: https://yazi-rs.github.io/docs/configuration/keymap/
+- nchat: installed `man nchat`, Ctrl+G help, Ctrl+O additional commands; upstream https://github.com/d99kris/nchat
+- aerc: `?`, `:help keys`, `man aerc`, `man aerc-binds`; installed /usr/share/aerc/binds.conf
+- tremc: installed /usr/bin/tremc action definitions; F1 / ? and backtick menus
+- Transmission: `man transmission-remote` and `transmission-remote --help`
+- Neovim: `:help index`, `:help quickref`, `:help netrw`, `:help usr_02.txt`
+- Markview: `:help markview.nvim`; installed plugin docs under ~/.local/share/nvim/site/pack/markdown/start/markview.nvim/doc
+- Minuet: ~/.local/share/nvim/site/pack/ai/start/minuet-ai.nvim/README.md
+- image.nvim: ~/.local/share/nvim/site/pack/markdown/start/image.nvim/README.md
+- sxiv/nsxiv: `man nsxiv`; Zathura: `man zathura`; Kitty: `man kitty`; tmux: `Ctrl+A ?` / `man tmux`
+- Printing: `man lp`, `man cancel`, `man lpstat`; Canon tray priority: https://files.canon-europe.com/files/soft26391/Manual/LBP2900_UG_EN.PDF
+
+### Updating without losing accuracy
+
+Run `~/.local/bin/update-shortcut-guide` after changing local bindings. It rereads
+desktop, aerc, nchat, Yazi overrides and the installed tremc action table. It compares
+aerc to installed defaults and Yazi to the cached pinned 26.9.1 default file.
+Curated Neovim/other-app explanations live in the generator and must be reviewed when
+their configuration changes. It does not claim those static sections self-update.
+No credentials, chat history, message bodies or browser databases are read by the
+generator. This generated file will be overwritten when regenerated; keep personal
+notes in another linked Markdown document.
+''')
+
+DEST.parent.mkdir(parents=True, exist_ok=True)
+DEST.write_text('\n'.join(parts))
+print(f'Updated {DEST}: {len(DEST.read_text().splitlines())} lines')
