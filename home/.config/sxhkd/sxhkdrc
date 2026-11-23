@@ -33,7 +33,7 @@ alt + f
 
 #Floating 
 alt + shift + space
-    bspc node -t '~floating'; 
+    bspc node -t '~floating'
 
 #PIP MOCE
 alt + p
