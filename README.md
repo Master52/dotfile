@@ -1,11 +1,11 @@
 # Dotfiles for Void Linux and bspwm
 
 Install GNU Stow and Git, then clone or check out this repository at `~/dotfile`.
-Preview and apply the five packages from the repository directory.
+Preview and apply the home package from the repository directory.
 
 ```bash
-stow --no-folding --simulate --verbose --target="$HOME" shell desktop apps scripts themes
-stow --no-folding --target="$HOME" shell desktop apps scripts themes
+stow --no-folding --simulate --verbose --target="$HOME" home
+stow --no-folding --target="$HOME" home
 ```
 
 If Stow reports a conflict, compare the existing file and move it to a backup
